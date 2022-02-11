@@ -12,19 +12,22 @@ impl Plugin for IndividualPlugin {
         .add_system_set(
             SystemSet::new()
                 .with_run_criteria(FixedTimestep::step(AGING_TIMESTEP.into()))
-                .with_system(get_older),
-        );
+                .with_system(age_older),
+        )
+        .add_system(start_partner_seeking);
     }
 }
 
 const AGING_TIMESTEP: f32 = 1.0;
 
-const CHILD_COLOR: Color = Color::rgb(0.2, 0.2, 0.2);
-const MALE_COLOR: Color = Color::rgb(0.1, 0.1, 0.4);
+// const CHILD_COLOR: Color = Color::rgb(0.2, 0.2, 0.2);
+// const MALE_COLOR: Color = Color::rgb(0.1, 0.1, 0.4);
 const FEMALE_COLOR: Color = Color::rgb(0.3, 0.1, 0.2);
 
+const PARTNER_SEEKING_AGE: f32 = 15.0;
+
 #[derive(Debug)]
-enum Sex {
+pub enum Sex {
     Male,
     Female,
 }
@@ -34,32 +37,45 @@ impl Default for Sex {
 }
 
 #[derive(Component)]
-struct Individual;
+pub struct Individual;
 
 #[derive(Component, Default, Debug)]
-struct Demog {
-    age: f32,
-    sex: Sex,
+pub struct Demog {
+    pub age: f32,
+    pub sex: Sex,
 }
 
-#[derive(Component)]
-struct Gestation {
-    remaining: f32,
-}
+// #[derive(Component)]
+// struct Gestation {
+//     remaining: f32,
+// }
 
 #[derive(Component)]
-struct PartnerSeeking;
+pub struct PartnerSeeking;
 
-fn get_older(time: Res<Time>, mut query: Query<(Entity, &mut Demog)> ) {
+pub fn age_older(
+    // time: Res<Time>, 
+    mut query: Query<(Entity, &mut Demog)>) {
     for (e, mut demog) in query.iter_mut() {
         eprintln!("Entity {:?} is {}-year-old {:?}", e, demog.age, demog.sex);
 
+        // demog.age += time.delta_seconds();  // if not FixedTimestep
         demog.age += AGING_TIMESTEP;
     }
 }
 
+pub fn start_partner_seeking(mut commands: Commands, query: Query<(Entity, &Demog, Without<PartnerSeeking>)>) {
+    for (e, demog, _) in query.iter() {
+
+        if demog.age > PARTNER_SEEKING_AGE {
+            eprintln!("Entity {:?} beginning partner-seeking", e);
+            commands.entity(e).insert(PartnerSeeking);
+        }
+    }
+}
+
 fn add_individual(mut commands: Commands) {
-    let entity_id = commands
+    let individual_id = commands
         .spawn_bundle(SpriteBundle {
             sprite: Sprite {
                 color: FEMALE_COLOR,  // TODO: link color/shape to age/sex
@@ -75,6 +91,5 @@ fn add_individual(mut commands: Commands) {
         .insert(Position::random_cell())
         .insert(Size::square(0.2))  // TODO: link size to age
         .id();
-    println!("First individual");
+    eprintln!("First individual {:?}", individual_id);
 }
-

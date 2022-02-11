@@ -1,9 +1,9 @@
 mod window;
-mod household;
+// mod household;
 mod individual;
 
 use crate::window::WindowPlugin;
-use crate::household::HouseholdPlugin;
+// use crate::household::HouseholdPlugin;
 use crate::individual::IndividualPlugin;
 
 use bevy::prelude::*;
