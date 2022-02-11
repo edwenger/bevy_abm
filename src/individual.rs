@@ -1,6 +1,23 @@
 use crate::window::{Size, Position};
 
 use bevy::prelude::*;
+use bevy::core::FixedTimestep;
+
+pub struct IndividualPlugin;
+
+impl Plugin for IndividualPlugin {
+    fn build(&self, app: &mut App) {
+        app
+        .add_startup_system(add_individual)
+        .add_system_set(
+            SystemSet::new()
+                .with_run_criteria(FixedTimestep::step(AGING_TIMESTEP.into()))
+                .with_system(get_older),
+        );
+    }
+}
+
+const AGING_TIMESTEP: f32 = 1.0;
 
 const CHILD_COLOR: Color = Color::rgb(0.2, 0.2, 0.2);
 const MALE_COLOR: Color = Color::rgb(0.1, 0.1, 0.4);
@@ -20,7 +37,7 @@ impl Default for Sex {
 struct Individual;
 
 #[derive(Component, Default, Debug)]
-pub struct Demog {
+struct Demog {
     age: f32,
     sex: Sex,
 }
@@ -33,15 +50,15 @@ struct Gestation {
 #[derive(Component)]
 struct PartnerSeeking;
 
-pub fn get_older(time: Res<Time>, mut query: Query<(Entity, &mut Demog)> ) {
+fn get_older(time: Res<Time>, mut query: Query<(Entity, &mut Demog)> ) {
     for (e, mut demog) in query.iter_mut() {
         eprintln!("Entity {:?} is {}-year-old {:?}", e, demog.age, demog.sex);
 
-        demog.age += 1.0;  // TODO: matching FixedTimestep size in system set should be enforced
+        demog.age += AGING_TIMESTEP;
     }
 }
 
-pub fn add_individual(mut commands: Commands) {
+fn add_individual(mut commands: Commands) {
     let entity_id = commands
         .spawn_bundle(SpriteBundle {
             sprite: Sprite {
