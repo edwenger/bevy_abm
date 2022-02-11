@@ -2,13 +2,17 @@ use crate::window::{Size, Position};
 
 use bevy::prelude::*;
 use bevy::core::FixedTimestep;
-
+use rand::{
+    distributions::{Distribution, Standard},
+    Rng,
+};
 pub struct IndividualPlugin;
 
 impl Plugin for IndividualPlugin {
     fn build(&self, app: &mut App) {
         app
         .add_startup_system(add_individual)
+        .add_system(keyboard_input)
         .add_system_set(
             SystemSet::new()
                 .with_run_criteria(FixedTimestep::step(AGING_TIMESTEP.into()))
@@ -20,20 +24,30 @@ impl Plugin for IndividualPlugin {
 
 const AGING_TIMESTEP: f32 = 1.0;
 
-// const CHILD_COLOR: Color = Color::rgb(0.2, 0.2, 0.2);
-// const MALE_COLOR: Color = Color::rgb(0.1, 0.1, 0.4);
-const FEMALE_COLOR: Color = Color::rgb(0.3, 0.1, 0.2);
+const CHILD_COLOR: Color = Color::rgb(0.2, 0.2, 0.2);
+const MALE_COLOR: Color = Color::rgb(0.1, 0.3, 0.5);
+const FEMALE_COLOR: Color = Color::rgb(0.4, 0.1, 0.4);
 
 const PARTNER_SEEKING_AGE: f32 = 15.0;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Sex {
-    Male,
     Female,
+    Male,
 }
 
 impl Default for Sex {
     fn default() -> Self { Sex::Female }
+}
+
+impl Distribution<Sex> for Standard {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Sex {
+        match rng.gen_range(0, 2) { // rand 0.5, 0.6, 0.7
+        // match rng.gen_range(0..=1) { // rand 0.8
+            0 => Sex::Female,
+            _ => Sex::Male,
+        }
+    }
 }
 
 #[derive(Component)]
@@ -74,19 +88,40 @@ pub fn start_partner_seeking(mut commands: Commands, query: Query<(Entity, &Demo
     }
 }
 
+fn keyboard_input(
+    commands: Commands,
+    keys: Res<Input<KeyCode>>,
+) {
+    if keys.just_pressed(KeyCode::Space) {
+        // Space was pressed --> add a random person
+        add_individual(commands);
+    }
+}
+
 fn add_individual(mut commands: Commands) {
+
+    let sex: Sex = rand::random();
+    let age = 20.0;
+    let color = if age < PARTNER_SEEKING_AGE {
+        CHILD_COLOR
+    } else if sex==Sex::Female {
+        FEMALE_COLOR
+    } else {
+        MALE_COLOR
+    };
+
     let individual_id = commands
         .spawn_bundle(SpriteBundle {
             sprite: Sprite {
-                color: FEMALE_COLOR,  // TODO: link color/shape to age/sex
+                color: color,
                 ..Default::default()
             },
             ..Default::default()
         })
         .insert(Individual)
         .insert(Demog{
-            age: 20.0,
-            ..Default::default()  // sex: Sex::Female
+            age: age,
+            sex: sex,
         })
         .insert(Position::random_cell())
         .insert(Size::square(0.2))  // TODO: link size to age

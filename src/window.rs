@@ -18,7 +18,7 @@ impl Plugin for WindowPlugin {
             height: WINDOW_PIXEL_HEIGHT,
             ..Default::default()
         })
-        .insert_resource(ClearColor(Color::rgb(0.04, 0.04, 0.04)))
+        .insert_resource(ClearColor(Color::rgb(0.74, 0.74, 0.74)))
 
         .add_startup_system(setup_camera)
 
