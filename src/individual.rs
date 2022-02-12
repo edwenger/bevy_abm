@@ -11,6 +11,7 @@ pub struct IndividualPlugin;
 impl Plugin for IndividualPlugin {
     fn build(&self, app: &mut App) {
         app
+        .init_resource::<AvailableSeekers>()
         .add_startup_system(add_individual)
         .add_system(keyboard_input)
         .add_system_set(
@@ -18,15 +19,16 @@ impl Plugin for IndividualPlugin {
                 .with_run_criteria(FixedTimestep::step(AGING_TIMESTEP.into()))
                 .with_system(age_older),
         )
-        .add_system(start_partner_seeking);
+        .add_system(start_partner_seeking)
+        .add_system(seek_partner);
     }
 }
 
 const AGING_TIMESTEP: f32 = 1.0;
 
 const CHILD_COLOR: Color = Color::rgb(0.2, 0.2, 0.2);
-const MALE_COLOR: Color = Color::rgb(0.1, 0.3, 0.5);
-const FEMALE_COLOR: Color = Color::rgb(0.4, 0.1, 0.4);
+const MALE_COLOR: Color = Color::rgb(0.2, 0.4, 0.6);
+const FEMALE_COLOR: Color = Color::rgb(0.5, 0.2, 0.4);
 
 const PARTNER_SEEKING_AGE: f32 = 15.0;
 
@@ -67,9 +69,16 @@ pub struct Demog {
 #[derive(Component)]
 pub struct PartnerSeeking;
 
+#[derive(Default)]
+pub struct AvailableSeekers {
+    females: Vec<Entity>,
+    males: Vec<Entity>
+}
+
 pub fn age_older(
     // time: Res<Time>, 
-    mut query: Query<(Entity, &mut Demog)>) {
+    mut query: Query<(Entity, &mut Demog)>
+) {
     for (e, mut demog) in query.iter_mut() {
         eprintln!("Entity {:?} is {}-year-old {:?}", e, demog.age, demog.sex);
 
@@ -78,12 +87,38 @@ pub fn age_older(
     }
 }
 
-pub fn start_partner_seeking(mut commands: Commands, query: Query<(Entity, &Demog, Without<PartnerSeeking>)>) {
+pub fn start_partner_seeking(
+    mut cache: ResMut<AvailableSeekers>, 
+    mut commands: Commands, 
+    query: Query<(Entity, &Demog, Without<PartnerSeeking>)>
+) {
     for (e, demog, _) in query.iter() {
 
         if demog.age > PARTNER_SEEKING_AGE {
             eprintln!("Entity {:?} beginning partner-seeking", e);
             commands.entity(e).insert(PartnerSeeking);
+            
+            match demog.sex {
+                Sex::Female => cache.females.push(e),
+                _ => cache.males.push(e),
+            }
+        }
+    }
+}
+
+pub fn seek_partner(
+    mut cache: ResMut<AvailableSeekers>, 
+    // mut commands: Commands, 
+    query: Query<(Entity, &Demog, With<PartnerSeeking>)>   
+) {
+    for (e, demog, _) in query.iter() {
+        let candidates = match demog.sex {
+            Sex::Female => &mut cache.males,
+            _ => &mut cache.females
+        };
+        
+        while let Some(candidate) = candidates.pop() {
+            eprintln!("Candidate partner for {:?} is {:?}", e, candidate);
         }
     }
 }
