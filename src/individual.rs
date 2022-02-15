@@ -12,6 +12,7 @@ impl Plugin for IndividualPlugin {
     fn build(&self, app: &mut App) {
         app
         .init_resource::<AvailableSeekers>()
+        .add_event::<BecomeAdultEvent>()
         .add_startup_system(add_individual)
         .add_system(keyboard_input)
         .add_system_set(
@@ -20,19 +21,25 @@ impl Plugin for IndividualPlugin {
                 .with_system(age_older),
         )
         .add_system(start_partner_seeking)
-        .add_system(seek_partner);
+        .add_system(recolor_new_adults)
+        .add_system_set(
+            SystemSet::new()
+                .with_run_criteria(FixedTimestep::step(SEEKING_TIMESTEP.into()))
+                .with_system(seek_partner),
+        );
     }
 }
 
-const AGING_TIMESTEP: f32 = 1.0;
+const AGING_TIMESTEP: f32 = 1.0/52.0;
+const SEEKING_TIMESTEP: f32 = 1.0/4.0;
 
 const CHILD_COLOR: Color = Color::rgb(0.2, 0.2, 0.2);
 const MALE_COLOR: Color = Color::rgb(0.2, 0.4, 0.6);
 const FEMALE_COLOR: Color = Color::rgb(0.5, 0.2, 0.4);
 
-const PARTNER_SEEKING_AGE: f32 = 15.0;
+const PARTNER_SEEKING_AGE: f32 = 20.0;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub enum Sex {
     Female,
     Male,
@@ -44,8 +51,7 @@ impl Default for Sex {
 
 impl Distribution<Sex> for Standard {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Sex {
-        match rng.gen_range(0, 2) { // rand 0.5, 0.6, 0.7
-        // match rng.gen_range(0..=1) { // rand 0.8
+        match rng.gen_range(0, 2) {
             0 => Sex::Female,
             _ => Sex::Male,
         }
@@ -61,10 +67,7 @@ pub struct Demog {
     pub sex: Sex,
 }
 
-// #[derive(Component)]
-// struct Gestation {
-//     remaining: f32,
-// }
+pub struct BecomeAdultEvent(Entity, Sex);
 
 #[derive(Component)]
 pub struct PartnerSeeking;
@@ -75,20 +78,24 @@ pub struct AvailableSeekers {
     males: Vec<Entity>
 }
 
+// #[derive(Component)]
+// struct Gestation {
+//     remaining: f32,
+// }
+
 pub fn age_older(
     // time: Res<Time>, 
-    mut query: Query<(Entity, &mut Demog)>
+    mut query: Query<&mut Demog>
 ) {
-    for (e, mut demog) in query.iter_mut() {
-        eprintln!("Entity {:?} is {}-year-old {:?}", e, demog.age, demog.sex);
-
+    for mut demog in query.iter_mut() {
         // demog.age += time.delta_seconds();  // if not FixedTimestep
         demog.age += AGING_TIMESTEP;
     }
 }
 
 pub fn start_partner_seeking(
-    mut cache: ResMut<AvailableSeekers>, 
+    mut cache: ResMut<AvailableSeekers>,
+    mut ev_adult: EventWriter<BecomeAdultEvent>,
     mut commands: Commands, 
     query: Query<(Entity, &Demog, Without<PartnerSeeking>)>
 ) {
@@ -98,6 +105,8 @@ pub fn start_partner_seeking(
             eprintln!("Entity {:?} beginning partner-seeking", e);
             commands.entity(e).insert(PartnerSeeking);
             
+            ev_adult.send(BecomeAdultEvent(e, demog.sex));
+
             match demog.sex {
                 Sex::Female => cache.females.push(e),
                 _ => cache.males.push(e),
@@ -105,6 +114,28 @@ pub fn start_partner_seeking(
         }
     }
 }
+
+pub fn recolor_new_adults(
+    mut commands: Commands,
+    mut ev_adult: EventReader<BecomeAdultEvent>,
+) {
+    for ev in ev_adult.iter() {
+        eprintln!("Processing new adult {:?}", ev.0);
+        commands.entity(ev.0)
+            .remove_bundle::<SpriteBundle>()
+            .insert_bundle(SpriteBundle {
+                sprite: Sprite {
+                    color: color_for_sex(ev.1),
+                    ..Default::default()
+                },
+                ..Default::default()
+            });
+    }
+}
+
+// pub fn match_partners() {
+    
+// }
 
 pub fn seek_partner(
     mut cache: ResMut<AvailableSeekers>, 
@@ -133,33 +164,41 @@ fn keyboard_input(
     }
 }
 
-fn add_individual(mut commands: Commands) {
-
-    let sex: Sex = rand::random();
-    let age = 20.0;
-    let color = if age < PARTNER_SEEKING_AGE {
-        CHILD_COLOR
-    } else if sex==Sex::Female {
+fn color_for_sex(sex: Sex) -> Color {
+    return if sex==Sex::Female {
         FEMALE_COLOR
     } else {
         MALE_COLOR
+    }
+}
+
+fn add_individual(mut commands: Commands) {
+
+    let sex: Sex = rand::random();
+    let age = 15.0;
+    let color = if age < PARTNER_SEEKING_AGE {
+        CHILD_COLOR
+    } else {
+        color_for_sex(sex)
     };
 
+    eprintln!("Adding {}-year-old {:?}...", age, sex);
     let individual_id = commands
-        .spawn_bundle(SpriteBundle {
+        .spawn()
+        .insert(Individual)
+        .insert(Demog{
+            age: age,
+            sex: sex,
+        })
+        .insert_bundle(SpriteBundle {
             sprite: Sprite {
                 color: color,
                 ..Default::default()
             },
             ..Default::default()
         })
-        .insert(Individual)
-        .insert(Demog{
-            age: age,
-            sex: sex,
-        })
         .insert(Position::random_cell())
-        .insert(Size::square(0.2))  // TODO: link size to age
+        .insert(Size::square(0.3))  // TODO: link size to age
         .id();
-    eprintln!("First individual {:?}", individual_id);
+    eprintln!("...in entity {:?}", individual_id);
 }
