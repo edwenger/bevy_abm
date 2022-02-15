@@ -76,6 +76,10 @@ impl Size {
             height: x,
         }
     }
+    pub fn resize(&mut self, x: f32) {
+        self.width = x;
+        self.height = x;
+    }
 }
 
 fn size_scaling(windows: Res<Windows>, mut q: Query<(&Size, &mut Transform)>) {

@@ -36,6 +36,7 @@ const SEEKING_TIMESTEP: f32 = 1.0/4.0;
 const CHILD_COLOR: Color = Color::rgb(0.2, 0.2, 0.2);
 const MALE_COLOR: Color = Color::rgb(0.2, 0.4, 0.6);
 const FEMALE_COLOR: Color = Color::rgb(0.5, 0.2, 0.4);
+const MAX_SPRITE_SIZE: f32 = 0.3;
 
 const PARTNER_SEEKING_AGE: f32 = 20.0;
 
@@ -85,13 +86,21 @@ pub struct AvailableSeekers {
 
 pub fn age_older(
     // time: Res<Time>, 
-    mut query: Query<&mut Demog>
+    mut query: Query<(&mut Demog, Option<&mut Size>)>
 ) {
-    for mut demog in query.iter_mut() {
+    for (mut demog, opt_size) in query.iter_mut() {
         // demog.age += time.delta_seconds();  // if not FixedTimestep
         demog.age += AGING_TIMESTEP;
+
+        if let Some(mut size) = opt_size {
+            if demog.age < PARTNER_SEEKING_AGE {
+                size.resize(size_for_age(demog.age));
+            }
+        }
     }
 }
+
+
 
 pub fn start_partner_seeking(
     mut cache: ResMut<AvailableSeekers>,
@@ -172,10 +181,14 @@ fn color_for_sex(sex: Sex) -> Color {
     }
 }
 
+fn size_for_age(age: f32) -> f32 {
+    return MAX_SPRITE_SIZE * age / PARTNER_SEEKING_AGE;
+}
+
 fn add_individual(mut commands: Commands) {
 
     let sex: Sex = rand::random();
-    let age = 15.0;
+    let age = 10.0;
     let color = if age < PARTNER_SEEKING_AGE {
         CHILD_COLOR
     } else {
@@ -198,7 +211,7 @@ fn add_individual(mut commands: Commands) {
             ..Default::default()
         })
         .insert(Position::random_cell())
-        .insert(Size::square(0.3))  // TODO: link size to age
+        .insert(Size::square(size_for_age(age)))
         .id();
     eprintln!("...in entity {:?}", individual_id);
 }
