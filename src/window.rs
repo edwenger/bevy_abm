@@ -35,17 +35,20 @@ fn setup_camera(mut commands: Commands) {
     commands.spawn_bundle(OrthographicCameraBundle::new_2d());
 }
 
-#[derive(Component, Clone, Copy, PartialEq, Eq)]
+#[derive(Component, Clone, Copy)]
 pub struct Position {
-    x: i32,
-    y: i32,
+    x: f32,
+    y: f32,
 }
 impl Position {
     pub fn random_cell() -> Self {
         Self {
-            x: (random::<f32>() * GRID_WIDTH as f32) as i32,
-            y: (random::<f32>() * GRID_HEIGHT as f32) as i32,
+            x: random::<f32>() * GRID_WIDTH as f32,
+            y: random::<f32>() * GRID_HEIGHT as f32,
         }
+    }
+    pub fn distance(&self, other: &Self) -> f32 {
+        return ((self.y - other.y).powf(2.0) + (self.x - other.x).powf(2.0)).sqrt();
     }
 }
 

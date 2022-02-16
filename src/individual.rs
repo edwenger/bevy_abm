@@ -6,6 +6,8 @@ use rand::{
     distributions::{Distribution, Standard},
     Rng,
 };
+use std::cmp::min;
+
 pub struct IndividualPlugin;
 
 impl Plugin for IndividualPlugin {
@@ -22,16 +24,19 @@ impl Plugin for IndividualPlugin {
         )
         .add_system(start_partner_seeking)
         .add_system(recolor_new_adults)
+        .add_system(add_new_partner_seekers)
         .add_system_set(
             SystemSet::new()
                 .with_run_criteria(FixedTimestep::step(SEEKING_TIMESTEP.into()))
-                .with_system(seek_partner),
-        );
+                .with_system(match_partners)
+                .with_system(position_near_partner)
+        )
+        .add_system(resolve_matches);
     }
 }
 
-const AGING_TIMESTEP: f32 = 1.0/52.0;
-const SEEKING_TIMESTEP: f32 = 1.0/4.0;
+const AGING_TIMESTEP: f32 = 1.0/12.0;
+const SEEKING_TIMESTEP: f32 = 2.0;  // N.B. slower for testing via printout + visualization
 
 const CHILD_COLOR: Color = Color::rgb(0.2, 0.2, 0.2);
 const MALE_COLOR: Color = Color::rgb(0.2, 0.4, 0.6);
@@ -68,15 +73,37 @@ pub struct Demog {
     pub sex: Sex,
 }
 
-pub struct BecomeAdultEvent(Entity, Sex);
+pub struct BecomeAdultEvent(Entity, Sex);  // TODO: learn more about borrow lifetime to use ref to &Demog in Event arguments
 
 #[derive(Component)]
 pub struct PartnerSeeking;
+
+#[derive(Component)]
+pub struct Partner {
+    e: Entity
+}
 
 #[derive(Default)]
 pub struct AvailableSeekers {
     females: Vec<Entity>,
     males: Vec<Entity>
+}
+impl AvailableSeekers {
+    fn add_seeker(&mut self, e: Entity, sex: Sex) {
+        match sex {
+            Sex::Female => self.females.push(e),
+            _ => self.males.push(e),
+        }
+    }
+}
+
+#[derive(Component)]
+pub struct Relationship;
+
+#[derive(Component)]
+pub struct Partners {
+    e1: Entity,
+    e2: Entity
 }
 
 // #[derive(Component)]
@@ -100,26 +127,18 @@ pub fn age_older(
     }
 }
 
-
-
 pub fn start_partner_seeking(
-    mut cache: ResMut<AvailableSeekers>,
     mut ev_adult: EventWriter<BecomeAdultEvent>,
     mut commands: Commands, 
-    query: Query<(Entity, &Demog, Without<PartnerSeeking>)>
+    query: Query<(Entity, &Demog), (Without<PartnerSeeking>, Without<Partner>)>
 ) {
-    for (e, demog, _) in query.iter() {
+    for (e, demog) in query.iter() {
 
         if demog.age > PARTNER_SEEKING_AGE {
             eprintln!("Entity {:?} beginning partner-seeking", e);
             commands.entity(e).insert(PartnerSeeking);
             
             ev_adult.send(BecomeAdultEvent(e, demog.sex));
-
-            match demog.sex {
-                Sex::Female => cache.females.push(e),
-                _ => cache.males.push(e),
-            }
         }
     }
 }
@@ -142,24 +161,69 @@ pub fn recolor_new_adults(
     }
 }
 
-// pub fn match_partners() {
-    
+// pub fn add_new_partner_seekers(
+//     mut cache: ResMut<AvailableSeekers>,
+//     mut ev_adult: EventReader<BecomeAdultEvent>,
+// ) {
+//     for ev in ev_adult.iter() {
+//         cache.add_seeker(ev.0, ev.1);
+//     }
 // }
 
-pub fn seek_partner(
-    mut cache: ResMut<AvailableSeekers>, 
-    // mut commands: Commands, 
-    query: Query<(Entity, &Demog, With<PartnerSeeking>)>   
+// nicer alternative to above?
+pub fn add_new_partner_seekers(
+    mut cache: ResMut<AvailableSeekers>,
+    query: Query<(Entity, &Demog), Added<PartnerSeeking>>
 ) {
-    for (e, demog, _) in query.iter() {
-        let candidates = match demog.sex {
-            Sex::Female => &mut cache.males,
-            _ => &mut cache.females
-        };
-        
-        while let Some(candidate) = candidates.pop() {
-            eprintln!("Candidate partner for {:?} is {:?}", e, candidate);
-        }
+    for (e, d) in query.iter() {
+        cache.add_seeker(e, d.sex);
+    }
+}
+
+pub fn match_partners(
+    mut cache: ResMut<AvailableSeekers>,
+    mut commands: Commands,
+) {
+    // Dummy example matching scheme: FIFO
+    
+    let it1 = cache.females.iter(); // drain() removes from vector as iterated (with unequal length kept after zip()
+    let it2 = cache.males.iter();  // ugh: can't borrow mutable cache more than once at a time (w/o extra Rust skills)
+
+    for (e1, e2) in it1.zip(it2) {
+        commands
+            .spawn()
+            .insert(Relationship)
+            .insert(Partners{
+                e1: *e1,
+                e2: *e2
+            });
+        eprintln!("New relationship between {:?} and {:?}", e1, e2);
+    }
+
+    let min_len = min(cache.females.len(), cache.males.len());
+    // eprintln!("Minimum queue of partner seekers = {}", min_len);
+
+    cache.males = cache.males.split_off(min_len);  // leave unmatched partner-seekers for next round
+    cache.females = cache.females.split_off(min_len);
+}
+
+pub fn resolve_matches(
+    mut commands: Commands,
+    query: Query<(&Relationship, &Partners), Added<Partners>>,
+) {
+    for (_, p) in query.iter() {
+        commands.entity(p.e1).insert(Partner {e: p.e2}).remove::<PartnerSeeking>();
+        commands.entity(p.e2).insert(Partner {e: p.e1}).remove::<PartnerSeeking>();
+    }
+}
+
+pub fn position_near_partner(
+    query: Query<(&Position, &Partner)>
+) {
+    for (pos, partner) in query.iter() {
+        let partner_pos = query.get(partner.e).unwrap().0;
+        let distance = pos.distance(partner_pos);
+        eprintln!("Partner distance {}", distance);
     }
 }
 
