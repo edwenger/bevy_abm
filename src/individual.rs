@@ -29,19 +29,21 @@ impl Plugin for IndividualPlugin {
             SystemSet::new()
                 .with_run_criteria(FixedTimestep::step(SEEKING_TIMESTEP.into()))
                 .with_system(match_partners)
-                .with_system(position_near_partner)
+                .with_system(set_partner_destination)
         )
-        .add_system(resolve_matches);
+        .add_system(resolve_matches)
+        .add_system(move_towards);
     }
 }
 
 const AGING_TIMESTEP: f32 = 1.0/12.0;
-const SEEKING_TIMESTEP: f32 = 2.0;  // N.B. slower for testing via printout + visualization
+const SEEKING_TIMESTEP: f32 = 1.0/4.0;  // N.B. slower for testing via printout + visualization
 
 const CHILD_COLOR: Color = Color::rgb(0.2, 0.2, 0.2);
 const MALE_COLOR: Color = Color::rgb(0.2, 0.4, 0.6);
 const FEMALE_COLOR: Color = Color::rgb(0.5, 0.2, 0.4);
 const MAX_SPRITE_SIZE: f32 = 0.3;
+const MOVE_VELOCITY: f32 = 1.0;
 
 const PARTNER_SEEKING_AGE: f32 = 20.0;
 
@@ -104,6 +106,11 @@ pub struct Relationship;
 pub struct Partners {
     e1: Entity,
     e2: Entity
+}
+
+#[derive(Component)]
+pub struct MovingTowards {
+    destination: Position
 }
 
 // #[derive(Component)]
@@ -217,15 +224,48 @@ pub fn resolve_matches(
     }
 }
 
-pub fn position_near_partner(
-    query: Query<(&Position, &Partner)>
+pub fn set_partner_destination(
+    mut commands: Commands,
+    query: Query<(Entity, &Position, &Partner), Added<Partner>>
 ) {
-    for (pos, partner) in query.iter() {
-        let partner_pos = query.get(partner.e).unwrap().0;
-        let distance = pos.distance(partner_pos);
-        eprintln!("Partner distance {}", distance);
+    for (e, pos, partner) in query.iter() {
+        let partner_pos = query.get(partner.e).unwrap().1;  // unwrap() takes non-error from Result<(Ent, Pos, Part), Error> type
+        // eprintln! ("Position: {}, {}", pos.x, pos.y);
+        // eprintln! ("Partner Position: {}, {}", partner_pos.x, partner_pos.y);
+        let _distance = pos.distance(partner_pos);
+        // eprintln!("Partner distance {}", _distance);
+        let midpoint = pos.midpoint(partner_pos);
+        // eprintln! ("Destination: {}, {}", midpoint.x, midpoint.y);
+        commands.entity(e).insert(MovingTowards { destination: midpoint });
     }
 }
+
+pub fn move_towards(
+    time: Res<Time>,
+    mut commands: Commands,
+    mut query: Query<(Entity, &mut Position, &MovingTowards)>
+) {
+    for (e, mut pos, mov) in query.iter_mut() {
+        let distance = pos.distance(&mov.destination);
+        if distance > MAX_SPRITE_SIZE * 0.55 {  // almost touching
+            let v = MOVE_VELOCITY * time.delta_seconds();
+            let u = pos.unit_direction(&mov.destination);
+            pos.x = pos.x + u.x * v;
+            pos.y = pos.y + u.y * v;
+        } else {
+            commands.entity(e).remove::<MovingTowards>();
+        }
+    }
+}
+
+// Q:
+// - is there a useful Vec2 class we can use for distance, speed, unit vector operations??
+//   - Position is component, but could hold (or impl) Vec2
+//   - Formatter, +/-/* operator, etc.
+// - debug wrong behavior
+//   - order of Position --> Window.position_translation?
+//   - wrong calculation of midpoint, sign of unit_direction?
+//   - overshooting with constant velocity + fixed proximity threshold?
 
 fn keyboard_input(
     commands: Commands,
@@ -252,7 +292,7 @@ fn size_for_age(age: f32) -> f32 {
 fn add_individual(mut commands: Commands) {
 
     let sex: Sex = rand::random();
-    let age = 10.0;
+    let age = 18.0;
     let color = if age < PARTNER_SEEKING_AGE {
         CHILD_COLOR
     } else {

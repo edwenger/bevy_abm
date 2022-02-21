@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use rand::prelude::random;
+use std::fmt::Formatter;
 
 pub const GRID_WIDTH: u32 = 15;
 pub const GRID_HEIGHT: u32 = 15;
@@ -37,8 +38,8 @@ fn setup_camera(mut commands: Commands) {
 
 #[derive(Component, Clone, Copy)]
 pub struct Position {
-    x: f32,
-    y: f32,
+    pub x: f32,
+    pub y: f32,
 }
 impl Position {
     pub fn random_cell() -> Self {
@@ -49,6 +50,25 @@ impl Position {
     }
     pub fn distance(&self, other: &Self) -> f32 {
         return ((self.y - other.y).powf(2.0) + (self.x - other.x).powf(2.0)).sqrt();
+    }
+    pub fn unit_direction(&self, other: &Self) -> Self {
+        let distance = self.distance(other);
+        Self {
+            x: (other.x - self.x) / distance,
+            y: (other.y - self.y) / distance
+        }
+    }
+    pub fn midpoint(&self, other: &Self) -> Self {
+        Self {
+            x: self.x + (other.x - self.x) / 2.0,
+            y: self.y + (other.y - self.y) / 2.0
+        }
+    }
+}
+impl std::fmt::Display for Position {
+    fn fmt(&self, _formatter: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
+        // TODO: look up API of Formatter
+        Ok(())
     }
 }
 
