@@ -10,7 +10,7 @@ fn did_start_partner_seeking() {
 
     // Setup stage with aging system
     let mut update_stage = SystemStage::parallel();
-    update_stage.add_system(age_older.label("aging"));
+    update_stage.add_system(update_age.label("aging"));
     update_stage.add_system(start_partner_seeking.after("aging"));
 
     // Setup test entities

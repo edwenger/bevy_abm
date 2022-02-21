@@ -6,6 +6,7 @@ use rand::{
     distributions::{Distribution, Standard},
     Rng,
 };
+use rand::prelude::random;
 use std::cmp::min;
 
 pub struct IndividualPlugin;
@@ -20,7 +21,8 @@ impl Plugin for IndividualPlugin {
         .add_system_set(
             SystemSet::new()
                 .with_run_criteria(FixedTimestep::step(AGING_TIMESTEP.into()))
-                .with_system(age_older),
+                .with_system(update_age)
+                .with_system(update_gestation)
         )
         .add_system(start_partner_seeking)
         .add_system(recolor_new_adults)
@@ -32,12 +34,20 @@ impl Plugin for IndividualPlugin {
                 .with_system(set_partner_destination)
         )
         .add_system(resolve_matches)
-        .add_system(move_towards);
+        .add_system(move_towards)
+        .add_system_set(
+            SystemSet::new()
+                .with_run_criteria(FixedTimestep::step(CONCEPTION_TIMESTEP.into()))
+                .with_system(conception)
+        );
     }
 }
 
+const E: f32 = 2.718281828459045;  // TODO: import from math crate??
+
 const AGING_TIMESTEP: f32 = 1.0/12.0;
 const SEEKING_TIMESTEP: f32 = 1.0/4.0;  // N.B. slower for testing via printout + visualization
+const CONCEPTION_TIMESTEP: f32 = 1.0/52.0;  
 
 const CHILD_COLOR: Color = Color::rgb(0.2, 0.2, 0.2);
 const MALE_COLOR: Color = Color::rgb(0.2, 0.4, 0.6);
@@ -46,6 +56,11 @@ const MAX_SPRITE_SIZE: f32 = 0.3;
 const MOVE_VELOCITY: f32 = 1.0;
 
 const PARTNER_SEEKING_AGE: f32 = 20.0;
+
+const MIN_CONCEPTION_AGE: f32 = 25.0;
+const MAX_CONCEPTION_AGE: f32 = 40.0;
+const CONCEPTION_RATE: f32 = 0.5;
+const GESTATION_DURATION: f32 = 40.0 / 52.0;
 
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum Sex {
@@ -113,12 +128,44 @@ pub struct MovingTowards {
     destination: Position
 }
 
-// #[derive(Component)]
-// struct Gestation {
-//     remaining: f32,
-// }
+#[derive(Component)]
+pub struct Gestation {
+    remaining: f32,
+}
 
-pub fn age_older(
+pub fn update_gestation(
+    mut commands: Commands,
+    mut query: Query<(Entity, &mut Gestation, &Demog)>
+) {
+    for (e, mut gestation, demog) in query.iter_mut() {
+        // demog.age += time.delta_seconds();  // if not FixedTimestep
+        gestation.remaining -= AGING_TIMESTEP;
+
+        if gestation.remaining < 0.0 {
+            commands.entity(e).remove::<Gestation>();
+            eprintln!("{:?} had a baby at age {}!", e, demog.age);
+        }
+    }
+}
+
+pub fn conception(
+    mut commands: Commands,
+    query: Query<(Entity, &Demog, &Partner), Without<Gestation>>
+) {
+    for (e, demog, _partner) in query.iter() {
+        if demog.sex == Sex::Female {
+            if demog.age > MIN_CONCEPTION_AGE && demog.age < MAX_CONCEPTION_AGE {
+                let conception_prob = 1.0 - E.powf(-CONCEPTION_TIMESTEP * CONCEPTION_RATE);
+                if random::<f32>() < conception_prob {
+                    eprintln!("{:?} conceived at age {}!", e, demog.age);
+                    commands.entity(e).insert(Gestation{remaining: GESTATION_DURATION});
+                }
+            }
+        }
+    }
+}
+
+pub fn update_age(
     // time: Res<Time>, 
     mut query: Query<(&mut Demog, Option<&mut Size>)>
 ) {
