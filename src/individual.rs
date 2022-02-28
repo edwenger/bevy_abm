@@ -16,7 +16,7 @@ impl Plugin for IndividualPlugin {
         app
         .init_resource::<AvailableSeekers>()
         .add_event::<BecomeAdultEvent>()
-        .add_startup_system(add_individual)
+        // .add_startup_system(add_individual)
         .add_system(keyboard_input)
         .add_system_set(
             SystemSet::new()
@@ -52,9 +52,11 @@ const CONCEPTION_TIMESTEP: f32 = 1.0/52.0;
 const CHILD_COLOR: Color = Color::rgb(0.2, 0.2, 0.2);
 const MALE_COLOR: Color = Color::rgb(0.2, 0.4, 0.6);
 const FEMALE_COLOR: Color = Color::rgb(0.5, 0.2, 0.4);
+const MIN_SPRITE_SIZE: f32 = 0.05;
 const MAX_SPRITE_SIZE: f32 = 0.3;
-const MOVE_VELOCITY: f32 = 1.0;
+const MOVE_VELOCITY: f32 = 5.0;
 
+const INITIAL_AGE: f32 = 18.0;
 const PARTNER_SEEKING_AGE: f32 = 20.0;
 
 const MIN_CONCEPTION_AGE: f32 = 25.0;
@@ -135,15 +137,28 @@ pub struct Gestation {
 
 pub fn update_gestation(
     mut commands: Commands,
-    mut query: Query<(Entity, &mut Gestation, &Demog)>
+    mut query: Query<(Entity, &mut Gestation, &Demog, Option<&Position>)>
 ) {
-    for (e, mut gestation, demog) in query.iter_mut() {
+    for (e, mut gestation, demog, opt_pos) in query.iter_mut() {
         // demog.age += time.delta_seconds();  // if not FixedTimestep
         gestation.remaining -= AGING_TIMESTEP;
 
         if gestation.remaining < 0.0 {
             commands.entity(e).remove::<Gestation>();
             eprintln!("{:?} had a baby at age {}!", e, demog.age);
+
+            // spawn the age=0 newborn child
+            if let Some(pos) = opt_pos {
+                add_individual(&mut commands, 0.0, Some(Position {
+                    x: pos.x - 0.5 + random::<f32>(),
+                    y: pos.y - 0.5 + random::<f32>()
+                }));
+            } else {
+                add_individual(&mut commands, 0.0, None);
+            }
+
+            // add the child to the parent?? (but this messes with Transform + GlobalTransform position translation??)
+            //commands.entity(e).push_children(&[child]);
         }
     }
 }
@@ -294,7 +309,7 @@ pub fn move_towards(
 ) {
     for (e, mut pos, mov) in query.iter_mut() {
         let distance = pos.distance(&mov.destination);
-        if distance > MAX_SPRITE_SIZE * 0.55 {  // almost touching
+        if distance > MAX_SPRITE_SIZE * 0.7071 {  // almost touching on diagonal
             let v = MOVE_VELOCITY * time.delta_seconds();
             let u = pos.unit_direction(&mov.destination);
             pos.x = pos.x + u.x * v;
@@ -309,18 +324,14 @@ pub fn move_towards(
 // - is there a useful Vec2 class we can use for distance, speed, unit vector operations??
 //   - Position is component, but could hold (or impl) Vec2
 //   - Formatter, +/-/* operator, etc.
-// - debug wrong behavior
-//   - order of Position --> Window.position_translation?
-//   - wrong calculation of midpoint, sign of unit_direction?
-//   - overshooting with constant velocity + fixed proximity threshold?
 
 fn keyboard_input(
-    commands: Commands,
+    mut commands: Commands,
     keys: Res<Input<KeyCode>>,
 ) {
     if keys.just_pressed(KeyCode::Space) {
         // Space was pressed --> add a random person
-        add_individual(commands);
+        add_individual(&mut commands, INITIAL_AGE, None);
     }
 }
 
@@ -333,13 +344,16 @@ fn color_for_sex(sex: Sex) -> Color {
 }
 
 fn size_for_age(age: f32) -> f32 {
-    return MAX_SPRITE_SIZE * age / PARTNER_SEEKING_AGE;
+    return MIN_SPRITE_SIZE + (MAX_SPRITE_SIZE - MIN_SPRITE_SIZE) * age / PARTNER_SEEKING_AGE;
 }
 
-fn add_individual(mut commands: Commands) {
+fn add_individual(
+    commands: &mut Commands,
+    age: f32,
+    position: Option<Position>
+) -> Entity {
 
     let sex: Sex = rand::random();
-    let age = 18.0;
     let color = if age < PARTNER_SEEKING_AGE {
         CHILD_COLOR
     } else {
@@ -361,8 +375,14 @@ fn add_individual(mut commands: Commands) {
             },
             ..Default::default()
         })
-        .insert(Position::random_cell())
         .insert(Size::square(size_for_age(age)))
         .id();
+
+    match position {
+        Some(x) => commands.entity(individual_id).insert(x),
+        None    => commands.entity(individual_id).insert(Position::random_cell())
+    };
+
     eprintln!("...in entity {:?}", individual_id);
+    return individual_id;
 }
