@@ -198,6 +198,7 @@ name = "bevy_abm"
 version = "0.1.0"
 dependencies = [
  "bevy",
+ "bevy_fly_camera",
  "rand 0.7.3",
 ]
 
@@ -352,6 +353,15 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "bevy_fly_camera"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7dd72cc40662337badaafa03cdc4953f759ba836faaf31e587a476bd9b573b42"
+dependencies = [
+ "bevy",
 ]
 
 [[package]]

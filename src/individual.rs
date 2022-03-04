@@ -18,7 +18,6 @@ impl Plugin for IndividualPlugin {
         .add_event::<BecomeAdultEvent>()
         .add_event::<DeathEvent>()
         // .add_startup_system(add_individual)
-        .add_system(keyboard_input)
         .add_system_set(
             SystemSet::new()
                 .with_run_criteria(FixedTimestep::step(AGING_TIMESTEP.into()))
@@ -57,7 +56,6 @@ const MIN_SPRITE_SIZE: f32 = 0.05;
 const MAX_SPRITE_SIZE: f32 = 0.3;
 const MOVE_VELOCITY: f32 = 5.0;
 
-const INITIAL_AGE: f32 = 18.0;
 const PARTNER_SEEKING_AGE: f32 = 20.0;
 const DEATH_AGE: f32 = 60.0;  // TODO: if this is young enough it exposes runtime error when dead singles are still in FIFO partner matching queue
 
@@ -332,21 +330,6 @@ pub fn move_towards(
     }
 }
 
-// Q:
-// - is there a useful Vec2 class we can use for distance, speed, unit vector operations??
-//   - Position is component, but could hold (or impl) Vec2
-//   - Formatter, +/-/* operator, etc.
-
-fn keyboard_input(
-    mut commands: Commands,
-    keys: Res<Input<KeyCode>>,
-) {
-    if keys.just_pressed(KeyCode::Space) {
-        // Space was pressed --> add a random person
-        add_individual(&mut commands, INITIAL_AGE, None);
-    }
-}
-
 fn color_for_sex(sex: Sex) -> Color {
     return if sex==Sex::Female {
         FEMALE_COLOR
@@ -359,7 +342,7 @@ fn size_for_age(age: f32) -> f32 {
     return MIN_SPRITE_SIZE + (MAX_SPRITE_SIZE - MIN_SPRITE_SIZE) * age / PARTNER_SEEKING_AGE;
 }
 
-fn add_individual(
+pub fn add_individual(
     commands: &mut Commands,
     age: f32,
     position: Option<Position>

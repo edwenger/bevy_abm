@@ -1,12 +1,18 @@
 use bevy::prelude::*;
+use bevy_fly_camera::{FlyCamera2d, FlyCameraPlugin};
+
 use rand::prelude::random;
 use std::fmt::Formatter;
+
+use crate::individual::add_individual;
 
 pub const GRID_WIDTH: u32 = 15;
 pub const GRID_HEIGHT: u32 = 15;
 
 const WINDOW_PIXEL_WIDTH: f32 = 800.0;
 const WINDOW_PIXEL_HEIGHT: f32 = 800.0;
+
+const SPAWN_INDIVIDUAL_AGE: f32 = 18.0;
 
 pub struct WindowPlugin;
 
@@ -19,9 +25,12 @@ impl Plugin for WindowPlugin {
             height: WINDOW_PIXEL_HEIGHT,
             ..Default::default()
         })
-        .insert_resource(ClearColor(Color::rgb(0.74, 0.74, 0.74)))
+        .insert_resource(ClearColor(Color::rgb(0.8, 0.8, 0.8)))
 
         .add_startup_system(setup_camera)
+        .add_plugin(FlyCameraPlugin)
+
+        .add_system(keyboard_input)
 
         .add_system_set_to_stage(
             CoreStage::PostUpdate,
@@ -33,8 +42,28 @@ impl Plugin for WindowPlugin {
 }
 
 fn setup_camera(mut commands: Commands) {
-    commands.spawn_bundle(OrthographicCameraBundle::new_2d());
+    commands
+        .spawn()
+        .insert_bundle(OrthographicCameraBundle::new_2d())
+        .insert(FlyCamera2d::default());
 }
+
+fn keyboard_input(
+    mut commands: Commands,
+    keys: Res<Input<KeyCode>>,
+) {
+    if keys.just_pressed(KeyCode::Return) {
+        // Space was pressed --> add a random person
+        add_individual(&mut commands, SPAWN_INDIVIDUAL_AGE, None);
+    }
+}
+
+
+// Q:
+// - is there a useful Vec2 class we can use for distance, speed, unit vector operations??
+//   - Position is component, but could hold (or impl) Vec2
+//   - Formatter, +/-/* operator, etc.
+
 
 #[derive(Component, Clone, Copy)]
 pub struct Position {
