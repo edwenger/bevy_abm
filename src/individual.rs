@@ -16,6 +16,7 @@ impl Plugin for IndividualPlugin {
         app
         .init_resource::<AvailableSeekers>()
         .add_event::<BecomeAdultEvent>()
+        .add_event::<DeathEvent>()
         // .add_startup_system(add_individual)
         .add_system(keyboard_input)
         .add_system_set(
@@ -58,9 +59,10 @@ const MOVE_VELOCITY: f32 = 5.0;
 
 const INITIAL_AGE: f32 = 18.0;
 const PARTNER_SEEKING_AGE: f32 = 20.0;
+const DEATH_AGE: f32 = 60.0;  // TODO: if this is young enough it exposes runtime error when dead singles are still in FIFO partner matching queue
 
 const MIN_CONCEPTION_AGE: f32 = 25.0;
-const MAX_CONCEPTION_AGE: f32 = 40.0;
+const MAX_CONCEPTION_AGE: f32 = 35.0;
 const CONCEPTION_RATE: f32 = 0.5;
 const GESTATION_DURATION: f32 = 40.0 / 52.0;
 
@@ -93,6 +95,8 @@ pub struct Demog {
 }
 
 pub struct BecomeAdultEvent(Entity, Sex);  // TODO: learn more about borrow lifetime to use ref to &Demog in Event arguments
+
+pub struct DeathEvent(Entity);
 
 #[derive(Component)]
 pub struct PartnerSeeking;
@@ -182,9 +186,11 @@ pub fn conception(
 
 pub fn update_age(
     // time: Res<Time>, 
-    mut query: Query<(&mut Demog, Option<&mut Size>)>
+    mut ev_death: EventWriter<DeathEvent>,
+    mut commands: Commands,
+    mut query: Query<(Entity, &mut Demog, Option<&mut Size>)>
 ) {
-    for (mut demog, opt_size) in query.iter_mut() {
+    for (e, mut demog, opt_size) in query.iter_mut() {
         // demog.age += time.delta_seconds();  // if not FixedTimestep
         demog.age += AGING_TIMESTEP;
 
@@ -192,6 +198,12 @@ pub fn update_age(
             if demog.age < PARTNER_SEEKING_AGE {
                 size.resize(size_for_age(demog.age));
             }
+        }
+
+        if demog.age > DEATH_AGE {
+            eprintln!("{:?} died", e);
+            ev_death.send(DeathEvent(e));  // TODO: trigger relationship breakup + removal from partner queue!
+            commands.entity(e).despawn();
         }
     }
 }
