@@ -7,9 +7,18 @@ use crate::individual::IndividualPlugin;
 use bevy::prelude::*;
 
 fn main() {
-    App::new()
-        .add_plugin(WindowPlugin)
-        .add_plugin(IndividualPlugin)
-        .add_plugins(DefaultPlugins)
-        .run();
+    let mut app = App::new();
+        
+    app.add_plugin(IndividualPlugin);
+
+    if cfg!(feature = "headless") {
+        app
+            .add_plugins(MinimalPlugins);
+    } else {
+        app
+            .add_plugin(WindowPlugin)
+            .add_plugins(DefaultPlugins);
+    }
+
+    app.run();
 }

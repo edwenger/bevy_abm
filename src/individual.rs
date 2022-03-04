@@ -17,7 +17,7 @@ impl Plugin for IndividualPlugin {
         .init_resource::<AvailableSeekers>()
         .add_event::<BecomeAdultEvent>()
         .add_event::<DeathEvent>()
-        // .add_startup_system(add_individual)
+        .add_startup_system(spawn_initial)
         .add_system_set(
             SystemSet::new()
                 .with_run_criteria(FixedTimestep::step(AGING_TIMESTEP.into()))
@@ -340,6 +340,10 @@ fn color_for_sex(sex: Sex) -> Color {
 
 fn size_for_age(age: f32) -> f32 {
     return MIN_SPRITE_SIZE + (MAX_SPRITE_SIZE - MIN_SPRITE_SIZE) * age / PARTNER_SEEKING_AGE;
+}
+
+pub fn spawn_initial(mut commands: Commands) {
+    add_individual(&mut commands, 0.0, None);  // dummy function to test features="headless"
 }
 
 pub fn add_individual(
