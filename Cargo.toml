@@ -9,6 +9,7 @@ edition = "2021"
 bevy = "0.6.0"
 bevy_fly_camera = "0.8.0"
 rand = "0.7.3"
+approx = "0.5.1"
 
 [features]
 # no features by default

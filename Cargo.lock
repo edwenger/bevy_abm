@@ -197,6 +197,7 @@ dependencies = [
 name = "bevy_abm"
 version = "0.1.0"
 dependencies = [
+ "approx",
  "bevy",
  "bevy_fly_camera",
  "rand 0.7.3",
