@@ -1,13 +1,15 @@
 use crate::window::{Size, Position};
 
+use std::cmp::min;
+
 use bevy::prelude::*;
 use bevy::core::FixedTimestep;
+
 use rand::{
     distributions::{Distribution, Standard},
     Rng,
 };
 use rand::prelude::random;
-use std::cmp::min;
 
 pub struct IndividualPlugin;
 
@@ -42,8 +44,6 @@ impl Plugin for IndividualPlugin {
         );
     }
 }
-
-const E: f32 = 2.718281828459045;  // TODO: import from math crate??
 
 const AGING_TIMESTEP: f32 = 1.0/12.0;
 const SEEKING_TIMESTEP: f32 = 1.0/4.0;  // N.B. slower for testing via printout + visualization
@@ -172,7 +172,7 @@ pub fn conception(
     for (e, demog, _partner) in query.iter() {
         if demog.sex == Sex::Female {
             if demog.age > MIN_CONCEPTION_AGE && demog.age < MAX_CONCEPTION_AGE {
-                let conception_prob = 1.0 - E.powf(-CONCEPTION_TIMESTEP * CONCEPTION_RATE);
+                let conception_prob = 1.0 - (-CONCEPTION_TIMESTEP * CONCEPTION_RATE).exp(); // f32.exp() is e^(f32)
                 if random::<f32>() < conception_prob {
                     eprintln!("{:?} conceived at age {}!", e, demog.age);
                     commands.entity(e).insert(Gestation{remaining: GESTATION_DURATION});
