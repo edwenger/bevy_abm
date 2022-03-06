@@ -4,7 +4,7 @@ use bevy_fly_camera::{FlyCamera2d, FlyCameraPlugin};
 use rand::prelude::random;
 use std::fmt::Formatter;
 
-use crate::individual::add_individual;
+use crate::individual::spawn_individual;
 
 pub const GRID_WIDTH: u32 = 15;
 pub const GRID_HEIGHT: u32 = 15;
@@ -53,8 +53,8 @@ fn keyboard_input(
     keys: Res<Input<KeyCode>>,
 ) {
     if keys.just_pressed(KeyCode::Return) {
-        // Space was pressed --> add a random person
-        add_individual(&mut commands, SPAWN_INDIVIDUAL_AGE, None);
+        // Return was pressed --> add a random person
+        spawn_individual(&mut commands, SPAWN_INDIVIDUAL_AGE, None);
     }
 }
 
