@@ -27,6 +27,7 @@ impl Plugin for IndividualPlugin {
         )
 
         //-- DISPLAY
+        .add_system(display_new_individual)
         .add_system(recolor_new_adults)
         .add_system(move_towards)
         .add_system(update_size)
@@ -124,15 +125,10 @@ pub fn initial_population(mut commands: Commands) {
 pub fn spawn_individual(
     commands: &mut Commands,
     age: f32,
-    position: Option<Position>
+    mother_opt: Option<Entity>
 ) -> Entity {
 
     let sex: Sex = rand::random();
-    let color = if age < PARTNER_SEEKING_AGE {
-        CHILD_COLOR
-    } else {
-        color_for_sex(sex)
-    };
 
     eprintln!("Adding {}-year-old {:?}...", age, sex);
     let individual_id = commands
@@ -142,20 +138,11 @@ pub fn spawn_individual(
             age: age,
             sex: sex,
         })
-        .insert_bundle(SpriteBundle {
-            sprite: Sprite {
-                color: color,
-                ..Default::default()
-            },
-            ..Default::default()
-        })
-        .insert(Size::square(size_for_age(age)))
         .id();
 
-    match position {
-        Some(x) => commands.entity(individual_id).insert(x),
-        None    => commands.entity(individual_id).insert(Position::random_cell())
-    };
+    if let Some(mother) = mother_opt  {
+        commands.entity(individual_id).insert(Mother(mother));
+    }
 
     eprintln!("...in entity {:?}", individual_id);
     return individual_id;
@@ -188,8 +175,45 @@ pub fn update_age(
 // ------ DISPLAY ------
 
 #[derive(Component)]
-pub struct MovingTowards {
-    destination: Position
+pub struct MovingTowards(Position);
+
+pub fn display_new_individual(
+    mut commands: Commands,
+    query: Query<(Entity, &Demog, Option<&Mother>), Added<Individual>>,
+    mother_query: Query<&Position>
+) {
+    for (e, demog, mother_opt) in query.iter() {
+        let color = if demog.age < PARTNER_SEEKING_AGE {
+            CHILD_COLOR
+        } else {
+            color_for_sex(demog.sex)
+        };
+
+        commands
+            .entity(e)
+            .insert_bundle(SpriteBundle {
+                sprite: Sprite {
+                    color: color,
+                    ..Default::default()
+                },
+                ..Default::default()
+            })
+            .insert(Size::square(size_for_age(demog.age)))
+            .id();
+
+        if let Some(mother) = mother_opt {
+            // TODO: cleaner syntax for checking if has Mother with Position?
+            // https://github.com/rust-lang/rfcs/blob/master/text/2497-if-let-chains.md#chained-if-lets-inside-match-arms
+            if let Ok(mother_position) = mother_query.get(mother.0) {
+                commands.entity(e).insert(position_near_parent(mother_position));
+            } else {
+                commands.entity(e).insert(Position::random_cell());
+            }
+        } else {
+            commands.entity(e).insert(Position::random_cell());
+        }
+
+    }
 }
 
 pub fn update_size(mut query: Query<(&Demog, &mut Size), Without<Adult>>) {
@@ -208,6 +232,13 @@ fn color_for_sex(sex: Sex) -> Color {
 
 fn size_for_age(age: f32) -> f32 {
     return MIN_SPRITE_SIZE + (MAX_SPRITE_SIZE - MIN_SPRITE_SIZE) * age / PARTNER_SEEKING_AGE;
+}
+
+fn position_near_parent(p: &Position) -> Position {
+    return Position{
+        x: p.x - 0.5 + random::<f32>(),
+        y: p.y - 0.5 + random::<f32>()
+    }
 }
 
 pub fn recolor_new_adults(
@@ -230,7 +261,7 @@ pub fn set_partner_destination(
         // eprintln!("Partner distance {}", _distance);
         let midpoint = pos.midpoint(partner_pos);
         // eprintln! ("Destination: {}, {}", midpoint.x, midpoint.y);
-        commands.entity(e).insert(MovingTowards { destination: midpoint });
+        commands.entity(e).insert(MovingTowards(midpoint));
     }
 }
 
@@ -239,11 +270,11 @@ pub fn move_towards(
     mut commands: Commands,
     mut query: Query<(Entity, &mut Position, &MovingTowards)>
 ) {
-    for (e, mut pos, mov) in query.iter_mut() {
-        let distance = pos.distance(&mov.destination);
+    for (e, mut pos, destination) in query.iter_mut() {
+        let distance = pos.distance(&destination.0);
         if distance > MAX_SPRITE_SIZE * 0.7071 {  // almost touching on diagonal
             let v = MOVE_VELOCITY * time.delta_seconds();
-            let u = pos.unit_direction(&mov.destination);
+            let u = pos.unit_direction(&destination.0);
             pos.x = pos.x + u.x * v;
             pos.y = pos.y + u.y * v;
         } else {
@@ -352,27 +383,20 @@ pub struct Mother(Entity);
 
 pub fn update_gestation(
     mut commands: Commands,
-    mut query: Query<(Entity, &mut RemainingGestation, &Demog, Option<&Position>)>
+    mut query: Query<(Entity, &mut RemainingGestation, &Demog)>
 ) {
-    for (e, mut gestation, demog, opt_pos) in query.iter_mut() {
+    for (e, mut gestation, demog) in query.iter_mut() {
         gestation.0 -= CONCEPTION_TIMESTEP;
 
         if gestation.0 < 0.0 {
             commands.entity(e).remove::<RemainingGestation>();
             eprintln!("{:?} had a baby at age {}!", e, demog.age);
 
-            // spawn the age=0 newborn child
-            if let Some(pos) = opt_pos {
-                spawn_individual(&mut commands, 0.0, Some(Position {
-                    x: pos.x - 0.5 + random::<f32>(),
-                    y: pos.y - 0.5 + random::<f32>()
-                }));
-            } else {
-                spawn_individual(&mut commands, 0.0, None);
-            }
-
-            // add the child to the parent?? (but this messes with Transform + GlobalTransform position translation??)
-            //commands.entity(e).push_children(&[child]);
+            spawn_individual(
+                &mut commands,
+                0.0,    // age = newborn
+                Some(e) // mother's entity_id
+            );
         }
     }
 }
