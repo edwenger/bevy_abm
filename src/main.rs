@@ -1,15 +1,22 @@
-mod window;
 mod individual;
+mod partner;
+mod gestation;
+mod window;
 
-use crate::window::WindowPlugin;
 use crate::individual::IndividualPlugin;
+use crate::partner::PartnerPlugin;
+use crate::gestation::GestationPlugin;
+use crate::window::WindowPlugin;
 
 use bevy::prelude::*;
 
 fn main() {
     let mut app = App::new();
         
-    app.add_plugin(IndividualPlugin);
+    app
+        .add_plugin(IndividualPlugin)
+        .add_plugin(PartnerPlugin)
+        .add_plugin(GestationPlugin);
 
     if cfg!(feature = "headless") {
         app

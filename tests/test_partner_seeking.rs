@@ -3,7 +3,8 @@ extern crate approx;
 
 use bevy::prelude::*;
 
-use bevy_abm::individual::*;
+use bevy_abm::individual::{Individual, Demog, Sex, Adult, update_age};
+use bevy_abm::partner::{PartnerSeeking, start_partner_seeking};
 
 #[test]
 fn did_start_partner_seeking() {
