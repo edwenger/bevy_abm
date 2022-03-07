@@ -1,5 +1,7 @@
 pub mod individual;
-mod window;
+pub mod partner;
+pub mod gestation;
+// pub mod window;
 
 #[cfg(test)]
 mod tests {
