@@ -59,8 +59,7 @@ fn keyboard_input(
 }
 
 
-// Q:
-// - is there a useful Vec2 class we can use for distance, speed, unit vector operations??
+// TODO: use Vec2 class for distance, speed, unit vector operations
 //   - Position is component, but could hold (or impl) Vec2
 //   - Formatter, +/-/* operator, etc.
 

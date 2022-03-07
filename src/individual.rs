@@ -19,7 +19,7 @@ impl Plugin for IndividualPlugin {
 
         //-- DEMOGRAPHICS
         .add_startup_system(initial_population)
-        .add_system(update_births)
+        .add_system(spawn_births)
         .add_system_set(
             SystemSet::new()
                 .with_run_criteria(FixedTimestep::step(AGING_TIMESTEP.into()))
@@ -28,21 +28,21 @@ impl Plugin for IndividualPlugin {
 
         //-- DISPLAY
         .add_system(display_new_individual)
-        .add_system(recolor_new_adults)
+        .add_system(update_child_size)
+        .add_system(assign_new_adult_color)
         .add_system(move_towards)
-        .add_system(update_size)
 
         //-- PARTNERS
         .init_resource::<AvailableSeekers>()
         .add_system(start_partner_seeking)
-        .add_system(add_new_partner_seekers)
         .add_system_set(
             SystemSet::new()
                 .with_run_criteria(FixedTimestep::step(SEEKING_TIMESTEP.into()))
+                .with_system(queue_partner_seekers)
                 .with_system(match_partners)
-                .with_system(set_partner_destination)
         )
         .add_system(resolve_matches)
+        .add_system(assign_pair_destination)
 
         //-- GESTATION
         .add_system(immaculate_conception)
@@ -58,7 +58,7 @@ impl Plugin for IndividualPlugin {
 
 //-- DEMOGRAPHICS
 const AGING_TIMESTEP: f32 = 1.0/12.0;
-const DEATH_AGE: f32 = 60.0;  // TODO: if this is young enough it exposes runtime error when dead singles are still in FIFO partner matching queue
+const DEATH_AGE: f32 = 60.0;
 
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum Sex {
@@ -86,6 +86,7 @@ const FEMALE_COLOR: Color = Color::rgb(0.5, 0.2, 0.4);
 const MIN_SPRITE_SIZE: f32 = 0.05;
 const MAX_SPRITE_SIZE: f32 = 0.3;
 const MOVE_VELOCITY: f32 = 5.0;
+const PARTNER_DESTINATION_RANDOM_SCALE: f32 = 5.0;
 
 //-- PARTNERS
 const SEEKING_TIMESTEP: f32 = 1.0/4.0;  // N.B. slower for testing via printout + visualization
@@ -148,7 +149,7 @@ pub fn spawn_individual(
     return individual_id;
 }
 
-pub fn update_births() {
+pub fn spawn_births() {
     // TODO: placeholder for birth-rate dependent spawning of new individuals w/o parents
 }
 
@@ -216,12 +217,6 @@ pub fn display_new_individual(
     }
 }
 
-pub fn update_size(mut query: Query<(&Demog, &mut Size), Without<Adult>>) {
-    for (demog, mut size) in query.iter_mut() {
-        size.resize(size_for_age(demog.age));
-    }
-}
-
 fn color_for_sex(sex: Sex) -> Color {
     return if sex==Sex::Female {
         FEMALE_COLOR
@@ -241,7 +236,13 @@ fn position_near_parent(p: &Position) -> Position {
     }
 }
 
-pub fn recolor_new_adults(
+pub fn update_child_size(mut query: Query<(&Demog, &mut Size), Without<Adult>>) {
+    for (demog, mut size) in query.iter_mut() {
+        size.resize(size_for_age(demog.age));
+    }
+}
+
+pub fn assign_new_adult_color(
     mut query: Query<(&Demog, &mut Sprite), Added<Adult>>,
 ) {
     for (demog, mut sprite) in query.iter_mut() {
@@ -249,19 +250,26 @@ pub fn recolor_new_adults(
     }
 }
 
-pub fn set_partner_destination(
+pub fn assign_pair_destination(
     mut commands: Commands,
-    query: Query<(Entity, &Position, &Partner), Added<Partner>>
+    rel_query: Query<&Partners, Added<Relationship>>,
+    ind_query: Query<(&Individual, &Position), (Without<Partner>, With<PartnerSeeking>)>
 ) {
-    for (e, pos, partner) in query.iter() {
-        let partner_pos = query.get(partner.e).unwrap().1;  // unwrap() takes non-error from Result<(Ent, Pos, Part), Error> type
-        // eprintln! ("Position: {}, {}", pos.x, pos.y);
-        // eprintln! ("Partner Position: {}, {}", partner_pos.x, partner_pos.y);
-        let _distance = pos.distance(partner_pos);
-        // eprintln!("Partner distance {}", _distance);
-        let midpoint = pos.midpoint(partner_pos);
-        // eprintln! ("Destination: {}, {}", midpoint.x, midpoint.y);
-        commands.entity(e).insert(MovingTowards(midpoint));
+    for partners in rel_query.iter() {
+        if let Ok((_ind1, pos1)) = ind_query.get(partners.e1) {
+            if let Ok((_ind2, pos2)) = ind_query.get(partners.e2) {
+
+                let midpoint = pos1.midpoint(pos2);
+
+                let destination = Position {
+                    x: midpoint.x + PARTNER_DESTINATION_RANDOM_SCALE * (random::<f32>() - 0.5),
+                    y: midpoint.y + PARTNER_DESTINATION_RANDOM_SCALE * (random::<f32>() - 0.5),
+                };
+                
+                commands.entity(partners.e1).insert(MovingTowards(destination));
+                commands.entity(partners.e2).insert(MovingTowards(destination));
+            } 
+        }
     }
 }
 
@@ -289,9 +297,7 @@ pub fn move_towards(
 pub struct PartnerSeeking;
 
 #[derive(Component)]
-pub struct Partner {
-    e: Entity
-}
+pub struct Partner(Entity);
 
 #[derive(Component)]
 pub struct Relationship;
@@ -314,6 +320,10 @@ impl AvailableSeekers {
             _ => self.males.push(e),
         }
     }
+    // fn clear(&mut self) {
+    //     self.females.clear();
+    //     self.males.clear();
+    // }
 }
 
 pub fn start_partner_seeking(
@@ -326,11 +336,15 @@ pub fn start_partner_seeking(
     }
 }
 
-// nicer alternative to above?
-pub fn add_new_partner_seekers(
+pub fn queue_partner_seekers(
     mut cache: ResMut<AvailableSeekers>,
-    query: Query<(Entity, &Demog), Added<PartnerSeeking>>
+    query: Query<(Entity, &Demog), 
+                //  With<PartnerSeeking>
+                 Added<PartnerSeeking>
+                 >
 ) {
+    // cache.clear();  // TODO: clear and repopulate queues periodically using With<> rather than Added<> query?
+
     for (e, d) in query.iter() {
         cache.add_seeker(e, d.sex);
     }
@@ -365,11 +379,24 @@ pub fn match_partners(
 
 pub fn resolve_matches(
     mut commands: Commands,
-    query: Query<(&Relationship, &Partners), Added<Partners>>,
+    rel_query: Query<(Entity, &Partners), Added<Relationship>>,
+    ind_query: Query<&Individual, (Without<Partner>, With<PartnerSeeking>)>
 ) {
-    for (_, p) in query.iter() {
-        commands.entity(p.e1).insert(Partner {e: p.e2}).remove::<PartnerSeeking>();
-        commands.entity(p.e2).insert(Partner {e: p.e1}).remove::<PartnerSeeking>();
+    for (rel_entity, partners) in rel_query.iter() {
+        if let Ok(_ind1) = ind_query.get(partners.e1) {
+            if let Ok(_ind2) = ind_query.get(partners.e2) {
+                commands.entity(partners.e1).insert(Partner(partners.e2)).remove::<PartnerSeeking>();
+                commands.entity(partners.e2).insert(Partner(partners.e1)).remove::<PartnerSeeking>();
+            } else {
+                eprintln!("{:?} has already despawned", partners.e2);
+                commands.entity(rel_entity).despawn();
+                commands.entity(partners.e1).remove::<PartnerSeeking>();  // will be added back to try again at finding a partner
+            }
+        } else {
+            eprintln!("{:?} has already despawned", partners.e1);
+            commands.entity(rel_entity).despawn();
+            commands.entity(partners.e2).remove::<PartnerSeeking>();  // will be added back to try again at finding a partner
+        }
     }
 }
 
