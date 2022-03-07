@@ -43,6 +43,7 @@ impl Plugin for IndividualPlugin {
         )
         .add_system(resolve_matches)
         .add_system(assign_pair_destination)
+        .add_system_to_stage(CoreStage::PostUpdate, detect_widows)
 
         //-- GESTATION
         .add_system(immaculate_conception)
@@ -58,7 +59,7 @@ impl Plugin for IndividualPlugin {
 
 //-- DEMOGRAPHICS
 const AGING_TIMESTEP: f32 = 1.0/12.0;
-const DEATH_AGE: f32 = 60.0;
+const DEATH_AGE: f32 = 30.0;  // faster testing
 
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum Sex {
@@ -396,6 +397,22 @@ pub fn resolve_matches(
             eprintln!("{:?} has already despawned", partners.e1);
             commands.entity(rel_entity).despawn();
             commands.entity(partners.e2).remove::<PartnerSeeking>();  // will be added back to try again at finding a partner
+        }
+    }
+}
+
+pub fn detect_widows(
+    mut commands: Commands,
+    removals: RemovedComponents<Partner>,
+    query: Query<&Partner>
+) {
+    for entity in removals.iter() {
+        eprintln!("{:?} detected removal of Partner component", entity);
+        if let Ok(partner) = query.get(entity) {
+            eprintln!("{:?} died + notified their partner {:?}", entity, partner.0);
+            commands.entity(partner.0).remove::<Partner>();  // remove Partner component from entities whose partner has removed theirs (e.g. by despawning)
+        } else {
+            eprintln!("No such entity in query for Partner component?");  // TODO: this line prints because the component isn't there!
         }
     }
 }
