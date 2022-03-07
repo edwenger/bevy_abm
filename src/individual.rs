@@ -18,9 +18,6 @@ impl Plugin for IndividualPlugin {
         app
 
         //-- DEMOGRAPHICS
-        .add_event::<BirthEvent>()
-        .add_event::<BecomeAdultEvent>()
-        .add_event::<DeathEvent>()
         .add_startup_system(initial_population)
         .add_system(update_births)
         .add_system_set(
@@ -32,6 +29,7 @@ impl Plugin for IndividualPlugin {
         //-- DISPLAY
         .add_system(recolor_new_adults)
         .add_system(move_towards)
+        .add_system(update_size)
 
         //-- PARTNERS
         .init_resource::<AvailableSeekers>()
@@ -114,10 +112,6 @@ pub struct Demog {
     pub sex: Sex,
 }
 
-pub struct BirthEvent(Entity);
-pub struct BecomeAdultEvent(Entity, Sex);  // TODO: adapt whether to send just Entity, also Sex, or also Demog (copy or borrow)?
-pub struct DeathEvent(Entity);
-
 pub fn initial_population(mut commands: Commands) {
     /*
     startup_system to spawn initial individuals
@@ -172,24 +166,20 @@ pub fn update_births() {
 }
 
 pub fn update_age(
-    // time: Res<Time>, 
-    mut ev_death: EventWriter<DeathEvent>,
     mut commands: Commands,
-    mut query: Query<(Entity, &mut Demog, Option<&mut Size>)>
+    mut query: Query<(Entity, &mut Demog, Option<&Adult>)>
 ) {
-    for (e, mut demog, opt_size) in query.iter_mut() {
-        // demog.age += time.delta_seconds();  // if not FixedTimestep
+    for (e, mut demog, adult_opt) in query.iter_mut() {
+
         demog.age += AGING_TIMESTEP;
 
-        if let Some(mut size) = opt_size {
-            if demog.age < PARTNER_SEEKING_AGE {
-                size.resize(size_for_age(demog.age));
-            }
+        if demog.age > PARTNER_SEEKING_AGE && adult_opt.is_none() {
+            eprintln!("{:?} is now an adult", e);
+            commands.entity(e).insert(Adult);
         }
 
         if demog.age > DEATH_AGE {
             eprintln!("{:?} died", e);
-            ev_death.send(DeathEvent(e));  // TODO: trigger relationship breakup + removal from partner queue!
             commands.entity(e).despawn();
         }
     }
@@ -200,6 +190,12 @@ pub fn update_age(
 #[derive(Component)]
 pub struct MovingTowards {
     destination: Position
+}
+
+pub fn update_size(mut query: Query<(&Demog, &mut Size), Without<Adult>>) {
+    for (demog, mut size) in query.iter_mut() {
+        size.resize(size_for_age(demog.age));
+    }
 }
 
 fn color_for_sex(sex: Sex) -> Color {
@@ -215,20 +211,10 @@ fn size_for_age(age: f32) -> f32 {
 }
 
 pub fn recolor_new_adults(
-    mut commands: Commands,
-    mut ev_adult: EventReader<BecomeAdultEvent>,
+    mut query: Query<(&Demog, &mut Sprite), Added<Adult>>,
 ) {
-    for ev in ev_adult.iter() {
-        eprintln!("Processing new adult {:?}", ev.0);
-        commands.entity(ev.0)
-            .remove_bundle::<SpriteBundle>()
-            .insert_bundle(SpriteBundle {
-                sprite: Sprite {
-                    color: color_for_sex(ev.1),
-                    ..Default::default()
-                },
-                ..Default::default()
-            });
+    for (demog, mut sprite) in query.iter_mut() {
+        sprite.color = color_for_sex(demog.sex);
     }
 }
 
@@ -300,29 +286,14 @@ impl AvailableSeekers {
 }
 
 pub fn start_partner_seeking(
-    mut ev_adult: EventWriter<BecomeAdultEvent>,
     mut commands: Commands, 
-    query: Query<(Entity, &Demog), (Without<PartnerSeeking>, Without<Partner>)>
+    query: Query<Entity, (Without<PartnerSeeking>, Without<Partner>, With<Adult>)>
 ) {
-    for (e, demog) in query.iter() {
-
-        if demog.age > PARTNER_SEEKING_AGE {
-            eprintln!("Entity {:?} beginning partner-seeking", e);
-            commands.entity(e).insert(PartnerSeeking);
-            
-            ev_adult.send(BecomeAdultEvent(e, demog.sex));
-        }
+    for e in query.iter() {
+        eprintln!("Entity {:?} beginning partner-seeking", e);
+        commands.entity(e).insert(PartnerSeeking);            
     }
 }
-
-// pub fn add_new_partner_seekers(
-//     mut cache: ResMut<AvailableSeekers>,
-//     mut ev_adult: EventReader<BecomeAdultEvent>,
-// ) {
-//     for ev in ev_adult.iter() {
-//         cache.add_seeker(ev.0, ev.1);
-//     }
-// }
 
 // nicer alternative to above?
 pub fn add_new_partner_seekers(
@@ -374,20 +345,20 @@ pub fn resolve_matches(
 // ------ GESTATION ------
 
 #[derive(Component)]
-pub struct Gestation {
-    remaining: f32,
-}
+pub struct RemainingGestation(f32);
+
+#[derive(Component)]
+pub struct Mother(Entity);
 
 pub fn update_gestation(
     mut commands: Commands,
-    mut query: Query<(Entity, &mut Gestation, &Demog, Option<&Position>)>
+    mut query: Query<(Entity, &mut RemainingGestation, &Demog, Option<&Position>)>
 ) {
     for (e, mut gestation, demog, opt_pos) in query.iter_mut() {
-        // demog.age += time.delta_seconds();  // if not FixedTimestep
-        gestation.remaining -= AGING_TIMESTEP;
+        gestation.0 -= CONCEPTION_TIMESTEP;
 
-        if gestation.remaining < 0.0 {
-            commands.entity(e).remove::<Gestation>();
+        if gestation.0 < 0.0 {
+            commands.entity(e).remove::<RemainingGestation>();
             eprintln!("{:?} had a baby at age {}!", e, demog.age);
 
             // spawn the age=0 newborn child
@@ -407,12 +378,12 @@ pub fn update_gestation(
 }
 
 pub fn immaculate_conception() {
-    // TODO: placeholder for fecundity-rate dependent insertion of Gestation w/o relationship
+    // TODO: placeholder for fecundity-rate dependent insertion of RemainingGestation w/o relationship
 }
 
 pub fn conception(
     mut commands: Commands,
-    query: Query<(Entity, &Demog, &Partner), Without<Gestation>>
+    query: Query<(Entity, &Demog, &Partner), Without<RemainingGestation>>
 ) {
     for (e, demog, _partner) in query.iter() {
         if demog.sex == Sex::Female {
@@ -420,7 +391,7 @@ pub fn conception(
                 let conception_prob = 1.0 - (-CONCEPTION_TIMESTEP * CONCEPTION_RATE).exp(); // f32.exp() is e^(f32)
                 if random::<f32>() < conception_prob {
                     eprintln!("{:?} conceived at age {}!", e, demog.age);
-                    commands.entity(e).insert(Gestation{remaining: GESTATION_DURATION});
+                    commands.entity(e).insert(RemainingGestation(GESTATION_DURATION));
                 }
             }
         }
