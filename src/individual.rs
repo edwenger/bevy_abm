@@ -7,8 +7,8 @@ use rand::{
     Rng,
 };
 
-use crate::partner::PARTNER_SEEKING_AGE;
 use crate::gestation::Mother;
+use crate::config::SimulationParameters;
 
 pub struct IndividualPlugin;
 
@@ -24,7 +24,7 @@ impl Plugin for IndividualPlugin {
 
 //-- DEMOGRAPHICS
 const AGING_TIMESTEP: f32 = 1.0/12.0;
-const DEATH_AGE: f32 = 30.0;  // faster testing
+// DEATH_AGE and PARTNER_SEEKING_AGE now come from SimulationParameters
 
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum Sex {
@@ -98,18 +98,19 @@ pub fn spawn_births() {
 
 pub fn update_age(
     mut commands: Commands,
-    mut query: Query<(Entity, &mut Demog, Option<&Adult>)>
+    mut query: Query<(Entity, &mut Demog, Option<&Adult>)>,
+    params: Res<SimulationParameters>
 ) {
     for (e, mut demog, adult_opt) in query.iter_mut() {
 
         demog.age += AGING_TIMESTEP;
 
-        if demog.age > PARTNER_SEEKING_AGE && adult_opt.is_none() {
+        if demog.age > params.partner_seeking_age && adult_opt.is_none() {
             eprintln!("{:?} is now an adult", e);
             commands.entity(e).insert(Adult);
         }
 
-        if demog.age > DEATH_AGE {
+        if demog.age > params.death_age {
             eprintln!("{:?} died", e);
             commands.entity(e).despawn();
         }

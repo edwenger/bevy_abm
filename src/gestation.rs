@@ -8,6 +8,7 @@ use crate::individual::{
     Demog, Sex, spawn_individual
 };
 use crate::partner::Partner;
+use crate::config::SimulationParameters;
 
 pub struct GestationPlugin;
 
@@ -27,11 +28,8 @@ impl Plugin for GestationPlugin {
 }
 
 //-- GESTATION
-const CONCEPTION_TIMESTEP: f32 = 1.0/52.0;  
-const MIN_CONCEPTION_AGE: f32 = 25.0;
-const MAX_CONCEPTION_AGE: f32 = 35.0;
-const CONCEPTION_RATE: f32 = 0.5;
-const GESTATION_DURATION: f32 = 40.0 / 52.0;
+const CONCEPTION_TIMESTEP: f32 = 1.0/52.0;
+// MIN_CONCEPTION_AGE, MAX_CONCEPTION_AGE, CONCEPTION_RATE, GESTATION_DURATION now come from SimulationParameters
 
 // ------ GESTATION ------
 
@@ -43,7 +41,8 @@ pub struct Mother(pub Entity);
 
 pub fn update_gestation(
     mut commands: Commands,
-    mut query: Query<(Entity, &mut RemainingGestation, &Demog)>
+    mut query: Query<(Entity, &mut RemainingGestation, &Demog)>,
+    params: Res<SimulationParameters>
 ) {
     for (e, mut gestation, demog) in query.iter_mut() {
         gestation.0 -= CONCEPTION_TIMESTEP;
@@ -67,15 +66,16 @@ pub fn immaculate_conception() {
 
 pub fn conception(
     mut commands: Commands,
-    query: Query<(Entity, &Demog, &Partner), Without<RemainingGestation>>
+    query: Query<(Entity, &Demog, &Partner), Without<RemainingGestation>>,
+    params: Res<SimulationParameters>
 ) {
     for (e, demog, _partner) in query.iter() {
         if demog.sex == Sex::Female {
-            if demog.age > MIN_CONCEPTION_AGE && demog.age < MAX_CONCEPTION_AGE {
-                let conception_prob = 1.0 - (-CONCEPTION_TIMESTEP * CONCEPTION_RATE).exp(); // f32.exp() is e^(f32)
+            if demog.age > params.min_conception_age && demog.age < params.max_conception_age {
+                let conception_prob = 1.0 - (-CONCEPTION_TIMESTEP * params.conception_rate).exp(); // f32.exp() is e^(f32)
                 if random::<f32>() < conception_prob {
                     eprintln!("{:?} conceived at age {}!", e, demog.age);
-                    commands.entity(e).insert(RemainingGestation(GESTATION_DURATION));
+                    commands.entity(e).insert(RemainingGestation(params.gestation_duration));
                 }
             }
         }

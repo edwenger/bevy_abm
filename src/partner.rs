@@ -7,6 +7,7 @@ use std::time::Duration;
 use crate::individual::{
     Individual, Demog, Adult, Sex
 };
+use crate::config::SimulationParameters;
 
 pub struct PartnerPlugin;
 
@@ -30,7 +31,7 @@ impl Plugin for PartnerPlugin {
 
 //-- PARTNERS
 const SEEKING_TIMESTEP: f32 = 1.0/4.0;  // N.B. slower for testing via printout + visualization
-pub const PARTNER_SEEKING_AGE: f32 = 20.0;
+// PARTNER_SEEKING_AGE now comes from SimulationParameters
 
 // ------ PARTNER ------
 
