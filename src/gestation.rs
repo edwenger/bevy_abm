@@ -1,5 +1,6 @@
 use bevy::prelude::*;
-use bevy::core::FixedTimestep;
+use bevy::time::common_conditions::on_timer;
+use std::time::Duration;
 
 use rand::prelude::random;
 
@@ -15,13 +16,13 @@ impl Plugin for GestationPlugin {
         app
 
         //-- GESTATION
-        .add_system(immaculate_conception)
-        .add_system_set(
-            SystemSet::new()
-                .with_run_criteria(FixedTimestep::step(CONCEPTION_TIMESTEP.into()))
-                .with_system(conception)
-                .with_system(update_gestation)
-        );
+        .add_systems(Update, (
+            immaculate_conception,
+            (
+                conception,
+                update_gestation,
+            ).run_if(on_timer(Duration::from_secs_f32(CONCEPTION_TIMESTEP))),
+        ));
     }
 }
 

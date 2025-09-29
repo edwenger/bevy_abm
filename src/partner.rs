@@ -1,7 +1,8 @@
 use std::cmp::min;
 
 use bevy::prelude::*;
-use bevy::core::FixedTimestep;
+use bevy::time::common_conditions::on_timer;
+use std::time::Duration;
 
 use crate::individual::{
     Individual, Demog, Adult, Sex
@@ -15,15 +16,15 @@ impl Plugin for PartnerPlugin {
 
         //-- PARTNERS
         .init_resource::<AvailableSeekers>()
-        .add_system(start_partner_seeking)
-        .add_system_set(
-            SystemSet::new()
-                .with_run_criteria(FixedTimestep::step(SEEKING_TIMESTEP.into()))
-                .with_system(queue_partner_seekers)
-                .with_system(match_partners)
-        )
-        .add_system(resolve_matches)
-        .add_system_to_stage(CoreStage::PostUpdate, detect_widows);
+        .add_systems(Update, (
+            start_partner_seeking,
+            (
+                queue_partner_seekers,
+                match_partners,
+            ).run_if(on_timer(Duration::from_secs_f32(SEEKING_TIMESTEP))),
+            resolve_matches,
+        ))
+        .add_systems(PostUpdate, detect_widows);
     }
 }
 
@@ -48,7 +49,7 @@ pub struct Partners {
     pub e2: Entity
 }
 
-#[derive(Default)]
+#[derive(Default, Resource)]
 pub struct AvailableSeekers {
     females: Vec<Entity>,
     males: Vec<Entity>
@@ -101,8 +102,7 @@ pub fn match_partners(
 
     for (e1, e2) in it1.zip(it2) {
         commands
-            .spawn()
-            .insert(Relationship)
+            .spawn(Relationship)
             .insert(Partners{
                 e1: *e1,
                 e2: *e2
@@ -142,10 +142,10 @@ pub fn resolve_matches(
 
 pub fn detect_widows(
     mut commands: Commands,
-    removals: RemovedComponents<Partner>,
+    mut removals: RemovedComponents<Partner>,
     query: Query<&Partner>
 ) {
-    for entity in removals.iter() {
+    for entity in removals.read() {
         eprintln!("{:?} detected removal of Partner component", entity);
         if let Ok(partner) = query.get(entity) {
             eprintln!("{:?} died + notified their partner {:?}", entity, partner.0);

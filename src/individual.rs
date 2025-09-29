@@ -1,5 +1,6 @@
 use bevy::prelude::*;
-use bevy::core::FixedTimestep;
+use bevy::time::common_conditions::on_timer;
+use std::time::Duration;
 
 use rand::{
     distributions::{Distribution, Standard},
@@ -16,13 +17,8 @@ impl Plugin for IndividualPlugin {
         app
 
         //-- DEMOGRAPHICS
-        .add_startup_system(initial_population)
-        .add_system(spawn_births)
-        .add_system_set(
-            SystemSet::new()
-                .with_run_criteria(FixedTimestep::step(AGING_TIMESTEP.into()))
-                .with_system(update_age)
-        );
+        .add_systems(Startup, initial_population)
+        .add_systems(Update, (spawn_births, update_age.run_if(on_timer(Duration::from_secs_f32(AGING_TIMESTEP)))));
     }
 }
 
@@ -42,7 +38,7 @@ impl Default for Sex {
 
 impl Distribution<Sex> for Standard {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Sex {
-        match rng.gen_range(0, 2) {
+        match rng.gen_range(0..2) {
             0 => Sex::Female,
             _ => Sex::Male,
         }
@@ -82,12 +78,10 @@ pub fn spawn_individual(
 
     eprintln!("Adding {}-year-old {:?}...", age, sex);
     let individual_id = commands
-        .spawn()
-        .insert(Individual)
-        .insert(Demog{
+        .spawn((Individual, Demog{
             age: age,
             sex: sex,
-        })
+        }))
         .id();
 
     if let Some(mother) = mother_opt  {

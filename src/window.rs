@@ -1,5 +1,6 @@
 use bevy::prelude::*;
-use bevy_fly_camera::{FlyCamera2d, FlyCameraPlugin};
+use bevy::window::{Window};
+use bevy::input::{ButtonInput};
 
 use rand::prelude::random;
 use std::fmt::Formatter;
@@ -16,8 +17,8 @@ use crate::gestation::Mother;
 pub const GRID_WIDTH: u32 = 15;
 pub const GRID_HEIGHT: u32 = 15;
 
-const WINDOW_PIXEL_WIDTH: f32 = 800.0;
-const WINDOW_PIXEL_HEIGHT: f32 = 800.0;
+pub const WINDOW_PIXEL_WIDTH: f32 = 800.0;
+pub const WINDOW_PIXEL_HEIGHT: f32 = 800.0;
 
 const SPAWN_INDIVIDUAL_AGE: f32 = 18.0;
 
@@ -30,52 +31,38 @@ const MAX_SPRITE_SIZE: f32 = 0.3;
 const MOVE_VELOCITY: f32 = 5.0;
 const PARTNER_DESTINATION_RANDOM_SCALE: f32 = 5.0;
 
-pub struct WindowPlugin;
+pub struct DisplayPlugin;
 
-impl Plugin for WindowPlugin {
+impl Plugin for DisplayPlugin {
     fn build(&self, app: &mut App) {
         app
-        .insert_resource(WindowDescriptor {
-            title: "ABM sandbox".to_string(),
-            width: WINDOW_PIXEL_WIDTH,
-            height: WINDOW_PIXEL_HEIGHT,
-            ..Default::default()
-        })
         .insert_resource(ClearColor(Color::rgb(0.8, 0.8, 0.8)))
 
-        .add_startup_system(setup_camera)
-        .add_plugin(FlyCameraPlugin)
-
-        .add_system(keyboard_input)
-
-        //-- DISPLAY
-        .add_system(display_new_individual)
-        .add_system(update_child_size)
-        .add_system(assign_new_adult_color)
-        .add_system(assign_pair_destination)
-        .add_system(move_towards)
-
-        .add_system_set_to_stage(
-            CoreStage::PostUpdate,
-            SystemSet::new()
-                .with_system(position_translation)
-                .with_system(size_scaling),
-        );
+        .add_systems(Startup, setup_camera)
+        .add_systems(Update, (
+            keyboard_input,
+            display_new_individual,
+            update_child_size,
+            assign_new_adult_color,
+            assign_pair_destination,
+            move_towards,
+        ))
+        .add_systems(PostUpdate, (
+            position_translation,
+            size_scaling,
+        ));
     }
 }
 
 fn setup_camera(mut commands: Commands) {
-    commands
-        .spawn()
-        .insert_bundle(OrthographicCameraBundle::new_2d())
-        .insert(FlyCamera2d::default());
+    commands.spawn(Camera2dBundle::default());
 }
 
 fn keyboard_input(
     mut commands: Commands,
-    keys: Res<Input<KeyCode>>,
+    keys: Res<ButtonInput<KeyCode>>,
 ) {
-    if keys.just_pressed(KeyCode::Return) {
+    if keys.just_pressed(KeyCode::Enter) {
         // Return was pressed --> add a random person
         spawn_individual(&mut commands, SPAWN_INDIVIDUAL_AGE, None);
     }
@@ -100,15 +87,14 @@ pub fn display_new_individual(
 
         commands
             .entity(e)
-            .insert_bundle(SpriteBundle {
+            .insert(SpriteBundle {
                 sprite: Sprite {
                     color: color,
                     ..Default::default()
                 },
                 ..Default::default()
             })
-            .insert(Size::square(size_for_age(demog.age)))
-            .id();
+            .insert(Size::square(size_for_age(demog.age)));
 
         if let Some(mother) = mother_opt {
             // TODO: cleaner syntax for checking if has Mother with Position?
@@ -240,18 +226,19 @@ impl std::fmt::Display for Position {
     }
 }
 
-fn position_translation(windows: Res<Windows>, mut q: Query<(&Position, &mut Transform)>) {
+fn position_translation(window_query: Query<&Window>, mut q: Query<(&Position, &mut Transform)>) {
     fn convert(pos: f32, bound_window: f32, bound_game: f32) -> f32 {
         let tile_size = bound_window / bound_game;
         pos / bound_game * bound_window - (bound_window / 2.) + (tile_size / 2.)
     }
-    let window = windows.get_primary().unwrap();
-    for (pos, mut transform) in q.iter_mut() {
-        transform.translation = Vec3::new(
-            convert(pos.x as f32, window.width() as f32, GRID_WIDTH as f32),
-            convert(pos.y as f32, window.height() as f32, GRID_HEIGHT as f32),
-            0.0,
-        );
+    if let Ok(window) = window_query.get_single() {
+        for (pos, mut transform) in q.iter_mut() {
+            transform.translation = Vec3::new(
+                convert(pos.x as f32, window.resolution.width(), GRID_WIDTH as f32),
+                convert(pos.y as f32, window.resolution.height(), GRID_HEIGHT as f32),
+                0.0,
+            );
+        }
     }
 }
 
@@ -273,13 +260,14 @@ impl Size {
     }
 }
 
-fn size_scaling(windows: Res<Windows>, mut q: Query<(&Size, &mut Transform)>) {
-    let window = windows.get_primary().unwrap();
-    for (sprite_size, mut transform) in q.iter_mut() {
-        transform.scale = Vec3::new(
-            sprite_size.width / GRID_WIDTH as f32 * window.width() as f32,
-            sprite_size.height / GRID_HEIGHT as f32 * window.height() as f32,
-            1.0,
-        );
+fn size_scaling(window_query: Query<&Window>, mut q: Query<(&Size, &mut Transform)>) {
+    if let Ok(window) = window_query.get_single() {
+        for (sprite_size, mut transform) in q.iter_mut() {
+            transform.scale = Vec3::new(
+                sprite_size.width / GRID_WIDTH as f32 * window.resolution.width(),
+                sprite_size.height / GRID_HEIGHT as f32 * window.resolution.height(),
+                1.0,
+            );
+        }
     }
 }

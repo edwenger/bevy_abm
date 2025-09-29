@@ -12,27 +12,26 @@ fn did_start_partner_seeking() {
     // Setup world
     let mut world = World::default();
 
-    // Setup stage with aging system
-    let mut update_stage = SystemStage::parallel();
-    update_stage.add_system(update_age.label("aging"));
-    update_stage.add_system(start_partner_seeking.after("aging"));
-
     // Setup test entities
-    let individual_id = world.spawn().insert(Individual).insert(Demog{ age: 19.5, sex: Sex::Male}).id();
+    let individual_id = world.spawn((Individual, Demog{ age: 19.5, sex: Sex::Male})).id();
 
     // Check before state
     assert!(world.get::<Individual>(individual_id).is_some());
-    relative_eq!(world.get::<Demog>(individual_id).unwrap().age, 19.5, epsilon = f32::EPSILON);
+    assert!(relative_eq!(world.get::<Demog>(individual_id).unwrap().age, 19.5, epsilon = f32::EPSILON));
     assert!(world.get::<Adult>(individual_id).is_none());
     assert!(world.get::<PartnerSeeking>(individual_id).is_none());
 
-    // Run systems
+    // Setup and run systems
+    let mut schedule = Schedule::default();
+    schedule.add_systems((update_age, start_partner_seeking));
+
+    // Run systems multiple times to simulate aging
     for _tstep in 0..12 {  // dependent on AGING_TIMESTEP
-        update_stage.run(&mut world);
+        schedule.run(&mut world);
     }
 
     // Check resulting changes
-    relative_eq!(world.get::<Demog>(individual_id).unwrap().age, 20.5, epsilon = f32::EPSILON);
+    assert!(relative_eq!(world.get::<Demog>(individual_id).unwrap().age, 20.5, epsilon = f32::EPSILON));
     assert!(world.get::<Adult>(individual_id).is_some());
     assert!(world.get::<PartnerSeeking>(individual_id).is_some());
 }
