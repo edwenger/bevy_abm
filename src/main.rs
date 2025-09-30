@@ -1,23 +1,41 @@
-mod window;
 mod individual;
+mod partner;
+mod gestation;
+mod window;
+mod config;
 
-use crate::window::WindowPlugin;
 use crate::individual::IndividualPlugin;
+use crate::partner::PartnerPlugin;
+use crate::gestation::GestationPlugin;
+use crate::window::{DisplayPlugin, WINDOW_PIXEL_WIDTH, WINDOW_PIXEL_HEIGHT};
+use crate::config::{ConfigPlugin, Args};
 
 use bevy::prelude::*;
+use bevy::window::{Window, WindowPlugin};
+use clap::Parser;
 
 fn main() {
+    let args = Args::parse();
     let mut app = App::new();
-        
-    app.add_plugin(IndividualPlugin);
+
+    app
+        .insert_resource(args)
+        .add_plugins((IndividualPlugin, PartnerPlugin, GestationPlugin, ConfigPlugin));
 
     if cfg!(feature = "headless") {
         app
             .add_plugins(MinimalPlugins);
     } else {
         app
-            .add_plugin(WindowPlugin)
-            .add_plugins(DefaultPlugins);
+            .add_plugins(DefaultPlugins.set(WindowPlugin {
+                primary_window: Some(Window {
+                    title: "ABM sandbox".to_string(),
+                    resolution: (WINDOW_PIXEL_WIDTH, WINDOW_PIXEL_HEIGHT).into(),
+                    ..default()
+                }),
+                ..default()
+            }))
+            .add_plugins(DisplayPlugin);
     }
 
     app.run();
