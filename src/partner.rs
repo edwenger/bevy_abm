@@ -217,7 +217,8 @@ pub fn random_breakups(
 pub fn detect_widows(
     mut commands: Commands,
     mut removals: RemovedComponents<Partner>,
-    rel_query: Query<(Entity, &Partners), With<Relationship>>
+    rel_query: Query<(Entity, &Partners), With<Relationship>>,
+    entity_query: Query<Entity>
 ) {
     for dead_entity in removals.read() {
         eprintln!("{:?} detected removal of Partner component", dead_entity);
@@ -226,13 +227,19 @@ pub fn detect_widows(
         for (rel_entity, partners) in rel_query.iter() {
             if partners.e1 == dead_entity {
                 eprintln!("{:?} died + notified their partner {:?}", dead_entity, partners.e2);
-                commands.entity(partners.e2).remove::<Partner>();
-                commands.entity(rel_entity).despawn(); // clean up the relationship entity
+                // Only try to remove Partner component if the partner entity still exists
+                if entity_query.get(partners.e2).is_ok() {
+                    commands.entity(partners.e2).remove::<Partner>();
+                }
+                commands.entity(rel_entity).despawn();
                 break;
             } else if partners.e2 == dead_entity {
                 eprintln!("{:?} died + notified their partner {:?}", dead_entity, partners.e1);
-                commands.entity(partners.e1).remove::<Partner>();
-                commands.entity(rel_entity).despawn(); // clean up the relationship entity
+                // Only try to remove Partner component if the partner entity still exists
+                if entity_query.get(partners.e1).is_ok() {
+                    commands.entity(partners.e1).remove::<Partner>();
+                }
+                commands.entity(rel_entity).despawn();
                 break;
             }
         }

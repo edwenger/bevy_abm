@@ -388,7 +388,7 @@ fn simulation_controls_ui(
 
             // Death Age slider
             ui.label("Death Age");
-            let response = ui.add(egui::Slider::new(&mut params.death_age, 20.0..=80.0).text("years"));
+            let response = ui.add(egui::Slider::new(&mut params.death_age, 20.0..=100.0).text("years"));
             if response.changed() {
                 eprintln!("Death age changed to: {}", params.death_age);
             }

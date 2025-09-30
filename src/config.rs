@@ -35,7 +35,7 @@ impl Default for SimulationParameters {
     fn default() -> Self {
         Self {
             // Demographics - ages only
-            death_age: 30.0,
+            death_age: 70.0,
             min_partner_seeking_age: 20.0,
             max_partner_seeking_age: 50.0,
             spawn_individual_age: 18.0,

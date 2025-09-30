@@ -6,7 +6,8 @@ use bevy::prelude::*;
 use bevy_abm::individual::{Individual, Demog, Sex, Adult, Elder, update_age};
 use bevy_abm::partner::{PartnerSeeking, start_partner_seeking, stop_elder_partner_seeking,
                         queue_partner_seekers, match_partners, resolve_matches,
-                        AvailableSeekers, Partner, Relationship, Partners};
+                        AvailableSeekers, Partner, Relationship, Partners,
+                        detect_widows, BreakupEvent};
 use bevy_abm::config::SimulationParameters;
 
 #[test]
@@ -199,4 +200,82 @@ fn test_partner_matching_with_uneven_ratios() {
     let unmatched_male = if matched_male == male1 { male2 } else { male1 };
     assert!(world.get::<PartnerSeeking>(unmatched_male).is_some(), "Unmatched male should still be seeking");
     assert!(world.get::<Partner>(unmatched_male).is_none(), "Unmatched male should not have Partner component");
+}
+
+#[test]
+fn test_simultaneous_partner_death() {
+    // Setup world with resources
+    let mut world = World::default();
+    let params = SimulationParameters {
+        death_age: 60.0, // We'll change this later to trigger deaths
+        min_partner_seeking_age: 20.0,
+        max_partner_seeking_age: 50.0,
+        min_conception_age: 22.0,
+        max_conception_age: 40.0,
+        conception_rate: 0.0, // Not testing conception
+        gestation_duration: 40.0 / 52.0,
+        breakup_rate: 0.0, // No breakups for this test
+        spawn_individual_age: 18.0,
+    };
+    world.insert_resource(params);
+    world.insert_resource(AvailableSeekers::default());
+    world.insert_resource(Events::<BreakupEvent>::default());
+    world.insert_resource(Time::<()>::default());
+
+    // Create male and female with ages in partner-seeking range but above future death age
+    let male1 = world.spawn((
+        Individual,
+        Demog { age: 35.0, sex: Sex::Male }, // In partner seeking range (20-50)
+        Adult,
+        PartnerSeeking,
+    )).id();
+
+    let female1 = world.spawn((
+        Individual,
+        Demog { age: 34.0, sex: Sex::Female }, // In partner seeking range (20-50)
+        Adult,
+        PartnerSeeking,
+    )).id();
+
+    // Setup partnership formation system
+    let mut partnership_schedule = Schedule::default();
+    partnership_schedule.add_systems((
+        queue_partner_seekers,
+        match_partners,
+        resolve_matches,
+    ));
+
+    // Run partnership formation until it happens
+    for _ in 0..10 {
+        partnership_schedule.run(&mut world);
+        // Check if partnership formed
+        if world.get::<Partner>(male1).is_some() && world.get::<Partner>(female1).is_some() {
+            break;
+        }
+    }
+
+    // Verify partnership formed
+    assert!(world.get::<Partner>(male1).is_some(), "Male should have Partner component");
+    assert!(world.get::<Partner>(female1).is_some(), "Female should have Partner component");
+
+    let relationships_before = world.query_filtered::<Entity, With<Relationship>>().iter(&world).count();
+    assert_eq!(relationships_before, 1, "Should have 1 relationship");
+
+    // Simulate both partners dying simultaneously by manually despawning them
+    // This mimics what happens when update_age runs with a lowered death_age (like moving UI slider down)
+    world.despawn(male1);
+    world.despawn(female1);
+
+    // Both despawns should have removed Partner components, triggering RemovedComponents events
+
+    // Setup widow detection system - this is where the panic should occur
+    let mut widow_schedule = Schedule::default();
+    widow_schedule.add_systems(detect_widows);
+
+    // This should NOT panic - it should handle duplicate relationship cleanup gracefully
+    widow_schedule.run(&mut world);
+
+    // Verify relationship entity is cleaned up (should only happen once, not cause panic)
+    let relationships_after = world.query_filtered::<Entity, With<Relationship>>().iter(&world).count();
+    assert_eq!(relationships_after, 0, "Relationship should be cleaned up after simultaneous deaths");
 }
