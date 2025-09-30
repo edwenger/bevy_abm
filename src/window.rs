@@ -7,10 +7,10 @@ use rand::prelude::random;
 use std::fmt::Formatter;
 
 use crate::individual::{
-    Individual, Demog, Adult, Sex, spawn_individual
+    Individual, Demog, Adult, Elder, Sex, spawn_individual
 };
 use crate::partner::{
-    Partner, PartnerSeeking, Relationship, Partners
+    Partner, PartnerSeeking, Relationship, Partners, BreakupEvent
 };
 use crate::gestation::Mother;
 use crate::config::SimulationParameters;
@@ -24,7 +24,7 @@ pub const WINDOW_PIXEL_HEIGHT: f32 = 800.0;
 // SPAWN_INDIVIDUAL_AGE now comes from SimulationParameters
 
 //-- DISPLAY
-const CHILD_COLOR: Color = Color::rgb(0.2, 0.2, 0.2);
+const CHILD_COLOR: Color = Color::rgb(0.6, 0.6, 0.6);
 const MALE_COLOR: Color = Color::rgb(0.2, 0.4, 0.6);
 const FEMALE_COLOR: Color = Color::rgb(0.5, 0.2, 0.4);
 const MIN_SPRITE_SIZE: f32 = 0.05;
@@ -43,10 +43,13 @@ impl Plugin for DisplayPlugin {
         .add_systems(Startup, setup_camera)
         .add_systems(Update, (
             keyboard_input,
+            camera_controls,
             display_new_individual,
             update_child_size,
             assign_new_adult_color,
+            assign_elder_color,
             assign_pair_destination,
+            handle_breakup_movement,
             move_towards,
             simulation_controls_ui,
         ))
@@ -72,6 +75,72 @@ fn keyboard_input(
     }
 }
 
+fn camera_controls(
+    keys: Res<ButtonInput<KeyCode>>,
+    time: Res<Time>,
+    mut camera_query: Query<&mut Transform, With<Camera2d>>
+) {
+    const CAMERA_SPEED: f32 = 500.0; // pixels per second
+
+    if let Ok(mut transform) = camera_query.get_single_mut() {
+        let mut direction = Vec2::ZERO;
+
+        if keys.pressed(KeyCode::KeyW) {
+            direction.y += 1.0;
+        }
+        if keys.pressed(KeyCode::KeyS) {
+            direction.y -= 1.0;
+        }
+        if keys.pressed(KeyCode::KeyA) {
+            direction.x -= 1.0;
+        }
+        if keys.pressed(KeyCode::KeyD) {
+            direction.x += 1.0;
+        }
+
+        if direction != Vec2::ZERO {
+            direction = direction.normalize();
+            let movement = direction * CAMERA_SPEED * time.delta_seconds();
+            transform.translation += Vec3::new(movement.x, movement.y, 0.0);
+        }
+    }
+}
+
+// ------ SPAWNING POSITION ------
+
+fn calculate_spawn_position(
+    mother_position: Option<&Position>,
+    camera_query: &Query<&Transform, With<Camera2d>>
+) -> Position {
+    // If there's a mother position, spawn near her
+    if let Some(mother_pos) = mother_position {
+        return position_near_parent(mother_pos);
+    }
+
+    // Try to spawn in camera view if camera exists
+    if let Ok(camera_transform) = camera_query.get_single() {
+        let camera_pos = camera_transform.translation;
+
+        // Convert camera world position to grid coordinates
+        // This reverses the conversion done in position_translation
+        let grid_x = (camera_pos.x + (WINDOW_PIXEL_WIDTH / 2.0)) / (WINDOW_PIXEL_WIDTH / GRID_WIDTH as f32);
+        let grid_y = (camera_pos.y + (WINDOW_PIXEL_HEIGHT / 2.0)) / (WINDOW_PIXEL_HEIGHT / GRID_HEIGHT as f32);
+
+        // Spawn randomly within the currently visible grid area
+        let spawn_x = grid_x + (random::<f32>() - 0.5) * GRID_WIDTH as f32;
+        let spawn_y = grid_y + (random::<f32>() - 0.5) * GRID_HEIGHT as f32;
+
+        // Clamp to ensure we stay within valid grid bounds
+        let spawn_x = spawn_x.clamp(0.0, GRID_WIDTH as f32);
+        let spawn_y = spawn_y.clamp(0.0, GRID_HEIGHT as f32);
+
+        return Position(Vec2::new(spawn_x, spawn_y));
+    }
+
+    // Fallback to random position anywhere on grid
+    Position::random_cell()
+}
+
 // ------ DISPLAY ------
 
 #[derive(Component)]
@@ -81,6 +150,7 @@ pub fn display_new_individual(
     mut commands: Commands,
     query: Query<(Entity, &Demog, Option<&Mother>), Added<Individual>>,
     mother_query: Query<&Position>,
+    camera_query: Query<&Transform, With<Camera2d>>,
     params: Res<SimulationParameters>
 ) {
     for (e, demog, mother_opt) in query.iter() {
@@ -101,17 +171,11 @@ pub fn display_new_individual(
             })
             .insert(Size::square(size_for_age(demog.age, params.min_partner_seeking_age)));
 
-        if let Some(mother) = mother_opt {
-            // TODO: cleaner syntax for checking if has Mother with Position?
-            // https://github.com/rust-lang/rfcs/blob/master/text/2497-if-let-chains.md#chained-if-lets-inside-match-arms
-            if let Ok(mother_position) = mother_query.get(mother.0) {
-                commands.entity(e).insert(position_near_parent(mother_position));
-            } else {
-                commands.entity(e).insert(Position::random_cell());
-            }
-        } else {
-            commands.entity(e).insert(Position::random_cell());
-        }
+        // Calculate spawn position based on mother location and camera view
+        let mother_position = mother_opt
+            .and_then(|mother| mother_query.get(mother.0).ok());
+        let position = calculate_spawn_position(mother_position, &camera_query);
+        commands.entity(e).insert(position);
 
     }
 }
@@ -129,10 +193,10 @@ fn size_for_age(age: f32, min_partner_seeking_age: f32) -> f32 {
 }
 
 fn position_near_parent(p: &Position) -> Position {
-    return Position{
-        x: p.x - 0.5 + random::<f32>(),
-        y: p.y - 0.5 + random::<f32>()
-    }
+    Position(p.0 + Vec2::new(
+        random::<f32>() - 0.5,
+        random::<f32>() - 0.5
+    ))
 }
 
 pub fn update_child_size(
@@ -152,6 +216,20 @@ pub fn assign_new_adult_color(
     }
 }
 
+pub fn assign_elder_color(
+    mut query: Query<(&Demog, &mut Sprite), Added<Elder>>,
+) {
+    for (demog, mut sprite) in query.iter_mut() {
+        let base_color = color_for_sex(demog.sex);
+        // Darken the color by reducing RGB values to 80%
+        sprite.color = Color::rgb(
+            base_color.r() * 0.8,
+            base_color.g() * 0.8,
+            base_color.b() * 0.8
+        );
+    }
+}
+
 pub fn assign_pair_destination(
     mut commands: Commands,
     rel_query: Query<&Partners, Added<Relationship>>,
@@ -163,14 +241,35 @@ pub fn assign_pair_destination(
 
                 let midpoint = pos1.midpoint(pos2);
 
-                let destination = Position {
-                    x: midpoint.x + PARTNER_DESTINATION_RANDOM_SCALE * (random::<f32>() - 0.5),
-                    y: midpoint.y + PARTNER_DESTINATION_RANDOM_SCALE * (random::<f32>() - 0.5),
-                };
+                let destination = Position(midpoint.0 + Vec2::new(
+                    PARTNER_DESTINATION_RANDOM_SCALE * (random::<f32>() - 0.5),
+                    PARTNER_DESTINATION_RANDOM_SCALE * (random::<f32>() - 0.5),
+                ));
                 
                 commands.entity(partners.e1).insert(MovingTowards(destination));
                 commands.entity(partners.e2).insert(MovingTowards(destination));
             } 
+        }
+    }
+}
+
+pub fn handle_breakup_movement(
+    mut commands: Commands,
+    mut breakup_events: EventReader<BreakupEvent>,
+    position_query: Query<&Position>
+) {
+    for event in breakup_events.read() {
+        if let Ok(male_position) = position_query.get(event.male_entity) {
+            // Move male away from current position
+            let move_distance = GRID_WIDTH as f32 * 0.05; // 5% of grid width
+            let random_direction = Vec2::new(
+                random::<f32>() - 0.5,
+                random::<f32>() - 0.5
+            ).normalize();
+            let destination = Position(male_position.0 + random_direction * move_distance);
+
+            commands.entity(event.male_entity).insert(MovingTowards(destination));
+            eprintln!("Male {:?} moving away after breakup at time {:.1}", event.male_entity, event.time);
         }
     }
 }
@@ -185,52 +284,41 @@ pub fn move_towards(
         if distance > MAX_SPRITE_SIZE * 0.7071 {  // almost touching on diagonal
             let v = MOVE_VELOCITY * time.delta_seconds();
             let u = pos.unit_direction(&destination.0);
-            pos.x = pos.x + u.x * v;
-            pos.y = pos.y + u.y * v;
+            pos.0 = pos.0 + u.0 * v;
         } else {
             commands.entity(e).remove::<MovingTowards>();
         }
     }
 }
 
-// TODO: use Vec2 class for distance, speed, unit vector operations
-//   - Position is component, but could hold (or impl) Vec2
-//   - Formatter, +/-/* operator, etc.
-
-
 #[derive(Component, Clone, Copy)]
-pub struct Position {
-    pub x: f32,
-    pub y: f32,
-}
+pub struct Position(pub Vec2);
+
 impl Position {
     pub fn random_cell() -> Self {
-        Self {
-            x: random::<f32>() * GRID_WIDTH as f32,
-            y: random::<f32>() * GRID_HEIGHT as f32,
-        }
+        Self(Vec2::new(
+            random::<f32>() * GRID_WIDTH as f32,
+            random::<f32>() * GRID_HEIGHT as f32,
+        ))
     }
+
     pub fn distance(&self, other: &Self) -> f32 {
-        return ((self.y - other.y).powf(2.0) + (self.x - other.x).powf(2.0)).sqrt();
+        self.0.distance(other.0)
     }
+
     pub fn unit_direction(&self, other: &Self) -> Self {
-        let distance = self.distance(other);
-        Self {
-            x: (other.x - self.x) / distance,
-            y: (other.y - self.y) / distance
-        }
+        let direction = (other.0 - self.0).normalize();
+        Self(direction)
     }
+
     pub fn midpoint(&self, other: &Self) -> Self {
-        Self {
-            x: self.x + (other.x - self.x) / 2.0,
-            y: self.y + (other.y - self.y) / 2.0
-        }
+        Self((self.0 + other.0) * 0.5)
     }
 }
+
 impl std::fmt::Display for Position {
-    fn fmt(&self, _formatter: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
-        // TODO: look up API of Formatter
-        Ok(())
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
+        write!(f, "({:.1}, {:.1})", self.0.x, self.0.y)
     }
 }
 
@@ -242,8 +330,8 @@ fn position_translation(window_query: Query<&Window>, mut q: Query<(&Position, &
     if let Ok(window) = window_query.get_single() {
         for (pos, mut transform) in q.iter_mut() {
             transform.translation = Vec3::new(
-                convert(pos.x as f32, window.resolution.width(), GRID_WIDTH as f32),
-                convert(pos.y as f32, window.resolution.height(), GRID_HEIGHT as f32),
+                convert(pos.0.x, window.resolution.width(), GRID_WIDTH as f32),
+                convert(pos.0.y, window.resolution.height(), GRID_HEIGHT as f32),
                 0.0,
             );
         }
@@ -290,6 +378,7 @@ fn simulation_controls_ui(
         .show(contexts.ctx_mut(), |ui| {
             ui.label("🎮 Controls:");
             ui.label("• Press ENTER to spawn new individual");
+            ui.label("• Use WASD to move camera");
             ui.label("• Use sliders to adjust parameters");
             ui.label("• Watch demographics evolve!");
 

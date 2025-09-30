@@ -9,6 +9,13 @@ use crate::individual::{
 };
 use crate::config::SimulationParameters;
 
+#[derive(Event)]
+pub struct BreakupEvent {
+    pub male_entity: Entity,
+    pub _female_entity: Entity,
+    pub time: f32,
+}
+
 pub struct PartnerPlugin;
 
 impl Plugin for PartnerPlugin {
@@ -16,6 +23,7 @@ impl Plugin for PartnerPlugin {
         app
 
         //-- PARTNERS
+        .add_event::<BreakupEvent>()
         .init_resource::<AvailableSeekers>()
         .add_systems(Update, (
             start_partner_seeking,
@@ -166,6 +174,9 @@ pub fn resolve_matches(
 pub fn random_breakups(
     mut commands: Commands,
     rel_query: Query<(Entity, &Partners), With<Relationship>>,
+    demog_query: Query<&Demog>,
+    mut breakup_events: EventWriter<BreakupEvent>,
+    time: Res<Time>,
     params: Res<SimulationParameters>
 ) {
     use rand::prelude::random;
@@ -176,6 +187,22 @@ pub fn random_breakups(
         let breakup_prob = 1.0 - (-SEEKING_TIMESTEP * params.breakup_rate).exp();
         if random::<f32>() < breakup_prob {
             eprintln!("Relationship between {:?} and {:?} ended in breakup", partners.e1, partners.e2);
+
+            // Determine which is male and which is female for the event
+            if let (Ok(demog1), Ok(_demog2)) = (demog_query.get(partners.e1), demog_query.get(partners.e2)) {
+                let (male_entity, female_entity) = if demog1.sex == Sex::Male {
+                    (partners.e1, partners.e2)
+                } else {
+                    (partners.e2, partners.e1)
+                };
+
+                // Send breakup event for other systems to handle
+                breakup_events.send(BreakupEvent {
+                    male_entity,
+                    _female_entity: female_entity,
+                    time: time.elapsed_seconds(),
+                });
+            }
 
             // Remove Partner components from both entities (they'll re-enter partner seeking)
             commands.entity(partners.e1).remove::<Partner>();

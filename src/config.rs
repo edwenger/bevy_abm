@@ -1,4 +1,17 @@
 use bevy::prelude::*;
+use clap::Parser;
+
+#[derive(Parser, Debug, Resource)]
+#[command(version, about, long_about = None)]
+pub struct Args {
+    /// Initial population size for headless mode
+    #[arg(short = 'n', long, default_value_t = 0)]
+    pub initial_population: usize,
+
+    /// Simulation duration in years (for headless mode)
+    #[arg(short = 's', long)]
+    pub sim_years: Option<f32>,
+}
 
 #[derive(Resource, Clone)]
 pub struct SimulationParameters {

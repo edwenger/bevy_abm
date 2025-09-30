@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use bevy::app::AppExit;
 use bevy::time::common_conditions::on_timer;
 use std::time::Duration;
 
@@ -8,7 +9,7 @@ use rand::{
 };
 
 use crate::gestation::Mother;
-use crate::config::SimulationParameters;
+use crate::config::{SimulationParameters, Args};
 
 pub struct IndividualPlugin;
 
@@ -18,7 +19,11 @@ impl Plugin for IndividualPlugin {
 
         //-- DEMOGRAPHICS
         .add_systems(Startup, initial_population)
-        .add_systems(Update, (spawn_births, update_age.run_if(on_timer(Duration::from_secs_f32(AGING_TIMESTEP)))));
+        .add_systems(Update, (
+            spawn_births,
+            update_age.run_if(on_timer(Duration::from_secs_f32(AGING_TIMESTEP))),
+            check_simulation_end
+        ));
     }
 }
 
@@ -62,13 +67,19 @@ pub struct Demog {
     pub sex: Sex,
 }
 
-pub fn initial_population(mut commands: Commands) {
-    /*
-    startup_system to spawn initial individuals
-        currently just a dummy function to test features="headless"
-        TODO: add some Local<Configuration> to make it more useful
-    */
-    spawn_individual(&mut commands, 0.0, None);
+pub fn initial_population(mut commands: Commands, args: Res<Args>) {
+    // Spawn initial population based on command line argument
+    // In headless mode, spawn N individuals as specified
+    // In GUI mode, spawn 0 by default (can be overridden with -n)
+    for _ in 0..args.initial_population {
+        // Spawn individuals with random ages between 18-30 for variety
+        let age = 18.0 + rand::random::<f32>() * 12.0; // 18-30 years old
+        spawn_individual(&mut commands, age, None);
+    }
+
+    if args.initial_population > 0 {
+        eprintln!("Spawned {} initial individuals", args.initial_population);
+    }
 }
 
 pub fn spawn_individual(
@@ -121,6 +132,22 @@ pub fn update_age(
         if demog.age > params.death_age {
             eprintln!("{:?} died", e);
             commands.entity(e).despawn();
+        }
+    }
+}
+
+pub fn check_simulation_end(
+    args: Res<Args>,
+    time: Res<Time>,
+    mut exit: EventWriter<AppExit>
+) {
+    if let Some(sim_years) = args.sim_years {
+        let elapsed_years = time.elapsed_seconds();
+
+        if elapsed_years >= sim_years {
+            eprintln!("\nSimulation completed after {:.2} years", elapsed_years);
+            eprintln!("Exiting...");
+            exit.send(AppExit);
         }
     }
 }
