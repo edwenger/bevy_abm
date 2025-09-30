@@ -34,15 +34,14 @@ const CONCEPTION_TIMESTEP: f32 = 1.0/52.0;
 // ------ GESTATION ------
 
 #[derive(Component)]
-pub struct RemainingGestation(f32);
+pub struct RemainingGestation(pub f32);
 
 #[derive(Component)]
 pub struct Mother(pub Entity);
 
 pub fn update_gestation(
     mut commands: Commands,
-    mut query: Query<(Entity, &mut RemainingGestation, &Demog)>,
-    params: Res<SimulationParameters>
+    mut query: Query<(Entity, &mut RemainingGestation, &Demog)>
 ) {
     for (e, mut gestation, demog) in query.iter_mut() {
         gestation.0 -= CONCEPTION_TIMESTEP;
@@ -69,12 +68,12 @@ pub fn conception(
     query: Query<(Entity, &Demog, &Partner), Without<RemainingGestation>>,
     params: Res<SimulationParameters>
 ) {
-    for (e, demog, _partner) in query.iter() {
+    for (e, demog, partner) in query.iter() {
         if demog.sex == Sex::Female {
             if demog.age > params.min_conception_age && demog.age < params.max_conception_age {
                 let conception_prob = 1.0 - (-CONCEPTION_TIMESTEP * params.conception_rate).exp(); // f32.exp() is e^(f32)
                 if random::<f32>() < conception_prob {
-                    eprintln!("{:?} conceived at age {}!", e, demog.age);
+                    eprintln!("{:?} conceived at age {} with partner {:?}!", e, demog.age, partner.0);
                     commands.entity(e).insert(RemainingGestation(params.gestation_duration));
                 }
             }

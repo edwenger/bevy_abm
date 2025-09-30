@@ -53,6 +53,9 @@ pub struct Individual;
 #[derive(Component)]
 pub struct Adult;
 
+#[derive(Component)]
+pub struct Elder;
+
 #[derive(Component, Default, Debug)]
 pub struct Demog {
     pub age: f32,
@@ -98,16 +101,21 @@ pub fn spawn_births() {
 
 pub fn update_age(
     mut commands: Commands,
-    mut query: Query<(Entity, &mut Demog, Option<&Adult>)>,
+    mut query: Query<(Entity, &mut Demog, Option<&Adult>, Option<&Elder>)>,
     params: Res<SimulationParameters>
 ) {
-    for (e, mut demog, adult_opt) in query.iter_mut() {
+    for (e, mut demog, adult_opt, elder_opt) in query.iter_mut() {
 
         demog.age += AGING_TIMESTEP;
 
-        if demog.age > params.partner_seeking_age && adult_opt.is_none() {
+        if demog.age > params.min_partner_seeking_age && adult_opt.is_none() {
             eprintln!("{:?} is now an adult", e);
             commands.entity(e).insert(Adult);
+        }
+
+        if demog.age > params.max_partner_seeking_age && elder_opt.is_none() {
+            eprintln!("{:?} is now an elder", e);
+            commands.entity(e).insert(Elder);
         }
 
         if demog.age > params.death_age {

@@ -84,7 +84,7 @@ pub fn display_new_individual(
     params: Res<SimulationParameters>
 ) {
     for (e, demog, mother_opt) in query.iter() {
-        let color = if demog.age < params.partner_seeking_age {
+        let color = if demog.age < params.min_partner_seeking_age {
             CHILD_COLOR
         } else {
             color_for_sex(demog.sex)
@@ -99,7 +99,7 @@ pub fn display_new_individual(
                 },
                 ..Default::default()
             })
-            .insert(Size::square(size_for_age(demog.age, params.partner_seeking_age)));
+            .insert(Size::square(size_for_age(demog.age, params.min_partner_seeking_age)));
 
         if let Some(mother) = mother_opt {
             // TODO: cleaner syntax for checking if has Mother with Position?
@@ -124,8 +124,8 @@ fn color_for_sex(sex: Sex) -> Color {
     }
 }
 
-fn size_for_age(age: f32, partner_seeking_age: f32) -> f32 {
-    return MIN_SPRITE_SIZE + (MAX_SPRITE_SIZE - MIN_SPRITE_SIZE) * age / partner_seeking_age;
+fn size_for_age(age: f32, min_partner_seeking_age: f32) -> f32 {
+    return MIN_SPRITE_SIZE + (MAX_SPRITE_SIZE - MIN_SPRITE_SIZE) * age / min_partner_seeking_age;
 }
 
 fn position_near_parent(p: &Position) -> Position {
@@ -140,7 +140,7 @@ pub fn update_child_size(
     params: Res<SimulationParameters>
 ) {
     for (demog, mut size) in query.iter_mut() {
-        size.resize(size_for_age(demog.age, params.partner_seeking_age));
+        size.resize(size_for_age(demog.age, params.min_partner_seeking_age));
     }
 }
 
@@ -306,11 +306,18 @@ fn simulation_controls_ui(
 
             ui.separator();
 
-            // Partner Seeking Age slider
-            ui.label("Partner Seeking Age");
-            let response = ui.add(egui::Slider::new(&mut params.partner_seeking_age, 15.0..=30.0).text("years"));
+            // Min Partner Seeking Age slider
+            ui.label("Min Partner Seeking Age");
+            let response = ui.add(egui::Slider::new(&mut params.min_partner_seeking_age, 15.0..=30.0).text("years"));
             if response.changed() {
-                eprintln!("Partner seeking age changed to: {}", params.partner_seeking_age);
+                eprintln!("Min partner seeking age changed to: {}", params.min_partner_seeking_age);
+            }
+
+            // Max Partner Seeking Age slider
+            ui.label("Max Partner Seeking Age");
+            let response = ui.add(egui::Slider::new(&mut params.max_partner_seeking_age, 40.0..=70.0).text("years"));
+            if response.changed() {
+                eprintln!("Max partner seeking age changed to: {}", params.max_partner_seeking_age);
             }
 
             ui.separator();
@@ -354,6 +361,15 @@ fn simulation_controls_ui(
             let response = ui.add(egui::Slider::new(&mut params.gestation_duration, 0.5..=1.5).text("time units"));
             if response.changed() {
                 eprintln!("Gestation duration changed to: {}", params.gestation_duration);
+            }
+
+            ui.separator();
+
+            // Breakup Rate slider
+            ui.label("Breakup Rate");
+            let response = ui.add(egui::Slider::new(&mut params.breakup_rate, 0.0..=1.0).text("per year"));
+            if response.changed() {
+                eprintln!("Breakup rate changed to: {}", params.breakup_rate);
             }
         });
 }

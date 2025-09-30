@@ -4,7 +4,8 @@ use bevy::prelude::*;
 pub struct SimulationParameters {
     // Demographics - ages and rates, not timesteps
     pub death_age: f32,
-    pub partner_seeking_age: f32,
+    pub min_partner_seeking_age: f32,
+    pub max_partner_seeking_age: f32,
     pub spawn_individual_age: f32,
 
     // Reproduction - rates and durations, not timesteps
@@ -12,6 +13,9 @@ pub struct SimulationParameters {
     pub max_conception_age: f32,
     pub conception_rate: f32,
     pub gestation_duration: f32,
+
+    // Relationships - rates, not timesteps
+    pub breakup_rate: f32,
 }
 
 impl Default for SimulationParameters {
@@ -19,7 +23,8 @@ impl Default for SimulationParameters {
         Self {
             // Demographics - ages only
             death_age: 30.0,
-            partner_seeking_age: 20.0,
+            min_partner_seeking_age: 20.0,
+            max_partner_seeking_age: 50.0,
             spawn_individual_age: 18.0,
 
             // Reproduction - rates and durations only
@@ -27,6 +32,9 @@ impl Default for SimulationParameters {
             max_conception_age: 35.0,
             conception_rate: 0.5,
             gestation_duration: 40.0 / 52.0,
+
+            // Relationships - rates only
+            breakup_rate: 0.1, // low rate for relationship stability
         }
     }
 }
