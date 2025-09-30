@@ -12,6 +12,8 @@ cargo run
 - **Enter** - Spawn a new individual at the current camera location
 - **UI Panel** - Adjust simulation parameters with sliders in real-time
 
+![Screenshot of interactive simulation UI](docs/demographic-UI-screenshot.png)
+
 ### Headless Mode
 ```bash
 cargo run --features headless [OPTIONS]
