@@ -101,7 +101,7 @@ pub fn initial_population(
     }
 
     if args.initial_population > 0 {
-        eprintln!("Spawned {} initial individuals", args.initial_population);
+        info!("Spawned {} initial individuals", args.initial_population);
     }
 }
 
@@ -115,7 +115,7 @@ pub fn spawn_individual(
 
     let sex: Sex = rand::random();
 
-    eprintln!("Adding {}-year-old {:?}...", age, sex);
+    debug!("Adding {}-year-old {:?} in entity (pending)", age, sex);
     let individual_id = commands
         .spawn((Individual, Demog{
             age: age,
@@ -134,7 +134,7 @@ pub fn spawn_individual(
         time: time.elapsed_seconds(),
     });
 
-    eprintln!("...in entity {:?}", individual_id);
+    debug!("Spawned individual {:?}", individual_id);
     return individual_id;
 }
 
@@ -154,17 +154,17 @@ pub fn update_age(
         demog.age += AGING_TIMESTEP;
 
         if demog.age > params.min_partner_seeking_age && adult_opt.is_none() {
-            eprintln!("{:?} is now an adult", e);
+            debug!("{:?} is now an adult", e);
             commands.entity(e).insert(Adult);
         }
 
         if demog.age > params.max_partner_seeking_age && elder_opt.is_none() {
-            eprintln!("{:?} is now an elder", e);
+            debug!("{:?} is now an elder", e);
             commands.entity(e).insert(Elder);
         }
 
         if demog.age > params.death_age {
-            eprintln!("{:?} died", e);
+            debug!("{:?} died", e);
 
             death_events.send(DeathEvent {
                 entity: e,
@@ -186,8 +186,8 @@ pub fn check_simulation_end(
         let elapsed_years = time.elapsed_seconds();
 
         if elapsed_years >= sim_years {
-            eprintln!("\nSimulation completed after {:.2} years", elapsed_years);
-            eprintln!("Exiting...");
+            info!("Simulation completed after {:.2} years", elapsed_years);
+            info!("Exiting...");
             exit.send(AppExit);
         }
     }

@@ -50,7 +50,7 @@ pub fn update_gestation(
 
         if gestation.0 < 0.0 {
             commands.entity(e).remove::<RemainingGestation>();
-            eprintln!("{:?} had a baby at age {}!", e, demog.age);
+            debug!("{:?} had a baby at age {}!", e, demog.age);
 
             spawn_individual(
                 &mut commands,
@@ -77,7 +77,7 @@ pub fn conception(
             if demog.age > params.min_conception_age && demog.age < params.max_conception_age {
                 let conception_prob = 1.0 - (-CONCEPTION_TIMESTEP * params.conception_rate).exp(); // f32.exp() is e^(f32)
                 if random::<f32>() < conception_prob {
-                    eprintln!("{:?} conceived at age {} with partner {:?}!", e, demog.age, partner.0);
+                    debug!("{:?} conceived at age {} with partner {:?}!", e, demog.age, partner.0);
                     commands.entity(e).insert(RemainingGestation(params.gestation_duration));
                 }
             }

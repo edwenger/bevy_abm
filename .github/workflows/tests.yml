@@ -56,3 +56,14 @@ jobs:
 
     - name: Test headless simulation
       run: timeout 30s cargo run --features headless -- --initial-population 100 --sim-years 10 || if [ $? -eq 124 ]; then echo "Simulation timed out as expected"; else exit $?; fi
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install Python package
+      run: pip install -e .
+
+    - name: Run Python tests
+      run: python python/tests/test_pybevy_demog.py

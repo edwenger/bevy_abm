@@ -105,8 +105,8 @@ pub fn start_partner_seeking(
     query: Query<Entity, (Without<PartnerSeeking>, Without<Partner>, With<Adult>, Without<Elder>)>
 ) {
     for e in query.iter() {
-        eprintln!("Entity {:?} beginning partner-seeking", e);
-        commands.entity(e).insert(PartnerSeeking);            
+        debug!("Entity {:?} beginning partner-seeking", e);
+        commands.entity(e).insert(PartnerSeeking);
     }
 }
 
@@ -115,7 +115,7 @@ pub fn stop_elder_partner_seeking(
     query: Query<Entity, (With<PartnerSeeking>, Added<Elder>)>
 ) {
     for e in query.iter() {
-        eprintln!("Entity {:?} stopped partner-seeking (became elder)", e);
+        debug!("Entity {:?} stopped partner-seeking (became elder)", e);
         commands.entity(e).remove::<PartnerSeeking>();
     }
 }
@@ -161,7 +161,7 @@ pub fn match_partners(
                 e1: e1,
                 e2: e2
             });
-        eprintln!("New relationship between {:?} and {:?}", e1, e2);
+        debug!("New relationship between {:?} and {:?}", e1, e2);
     }
 
     // Update cache: keep only unmatched valid entities
@@ -189,12 +189,12 @@ pub fn resolve_matches(
                     time: time.elapsed_seconds(),
                 });
             } else {
-                eprintln!("{:?} has already despawned", partners.e2);
+                debug!("{:?} has already despawned", partners.e2);
                 commands.entity(rel_entity).despawn();
                 commands.entity(partners.e1).remove::<PartnerSeeking>();  // will be added back to try again at finding a partner
             }
         } else {
-            eprintln!("{:?} has already despawned", partners.e1);
+            debug!("{:?} has already despawned", partners.e1);
             commands.entity(rel_entity).despawn();
             commands.entity(partners.e2).remove::<PartnerSeeking>();  // will be added back to try again at finding a partner
         }
@@ -216,7 +216,7 @@ pub fn random_breakups(
     for (rel_entity, partners) in rel_query.iter() {
         let breakup_prob = 1.0 - (-SEEKING_TIMESTEP * params.breakup_rate).exp();
         if random::<f32>() < breakup_prob {
-            eprintln!("Relationship between {:?} and {:?} ended in breakup", partners.e1, partners.e2);
+            debug!("Relationship between {:?} and {:?} ended in breakup", partners.e1, partners.e2);
 
             // Determine which is male and which is female for the event
             if let (Ok(demog1), Ok(_demog2)) = (demog_query.get(partners.e1), demog_query.get(partners.e2)) {
@@ -254,12 +254,12 @@ pub fn detect_widows(
     time: Res<Time>
 ) {
     for dead_entity in removals.read() {
-        eprintln!("{:?} detected removal of Partner component", dead_entity);
+        debug!("{:?} detected removal of Partner component", dead_entity);
 
         // Find the relationship entity that contains this dead entity
         for (rel_entity, partners) in rel_query.iter() {
             if partners.e1 == dead_entity {
-                eprintln!("{:?} died + notified their partner {:?}", dead_entity, partners.e2);
+                debug!("{:?} died + notified their partner {:?}", dead_entity, partners.e2);
                 // Only try to remove Partner component if the partner entity still exists
                 if entity_query.get(partners.e2).is_ok() {
                     commands.entity(partners.e2).remove::<Partner>();
@@ -274,7 +274,7 @@ pub fn detect_widows(
                 commands.entity(rel_entity).despawn();
                 break;
             } else if partners.e2 == dead_entity {
-                eprintln!("{:?} died + notified their partner {:?}", dead_entity, partners.e1);
+                debug!("{:?} died + notified their partner {:?}", dead_entity, partners.e1);
                 // Only try to remove Partner component if the partner entity still exists
                 if entity_query.get(partners.e1).is_ok() {
                     commands.entity(partners.e1).remove::<Partner>();
