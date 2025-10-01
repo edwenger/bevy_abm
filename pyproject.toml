@@ -1,0 +1,19 @@
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "bevy-abm"
+version = "0.1.0"
+description = "Demographic agent-based model using Bevy ECS, callable from Python"
+requires-python = ">=3.8"
+dependencies = [
+    "polars>=0.19.0",
+]
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: Implementation :: CPython",
+]
+
+[tool.maturin]
+features = ["python"]

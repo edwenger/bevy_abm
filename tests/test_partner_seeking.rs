@@ -2,12 +2,13 @@
 extern crate approx;
 
 use bevy::prelude::*;
+use bevy::ecs::event::Events;
 
-use bevy_abm::individual::{Individual, Demog, Sex, Adult, Elder, update_age};
+use bevy_abm::individual::{Individual, Demog, Sex, Adult, Elder, update_age, DeathEvent};
 use bevy_abm::partner::{PartnerSeeking, start_partner_seeking, stop_elder_partner_seeking,
                         queue_partner_seekers, match_partners, resolve_matches,
                         AvailableSeekers, Partner, Relationship, Partners,
-                        detect_widows, BreakupEvent};
+                        detect_widows, BreakupEvent, PartnerEvent, WidowEvent};
 use bevy_abm::config::SimulationParameters;
 
 #[test]
@@ -22,6 +23,8 @@ fn did_start_partner_seeking() {
         ..Default::default()
     };
     world.insert_resource(params.clone());
+    world.init_resource::<Events<DeathEvent>>();
+    world.init_resource::<Time>();
 
     // Setup test entity just below min partner seeking age
     let start_age = params.min_partner_seeking_age - 0.5;
@@ -63,6 +66,8 @@ fn did_stop_partner_seeking() {
         ..Default::default()
     };
     world.insert_resource(params.clone());
+    world.init_resource::<Events<DeathEvent>>();
+    world.init_resource::<Time>();
 
     // Setup test entity just below max partner seeking age with PartnerSeeking
     let start_age = params.max_partner_seeking_age - 0.5;
@@ -112,6 +117,8 @@ fn test_partner_matching_with_uneven_ratios() {
     };
     world.insert_resource(params.clone());
     world.insert_resource(AvailableSeekers::default());
+    world.init_resource::<Events<PartnerEvent>>();
+    world.init_resource::<Time>();
 
     // Create entities: 2 males, 1 female - all adults but not yet seeking partners
     let male1 = world.spawn((
@@ -219,8 +226,10 @@ fn test_simultaneous_partner_death() {
     };
     world.insert_resource(params);
     world.insert_resource(AvailableSeekers::default());
-    world.insert_resource(Events::<BreakupEvent>::default());
-    world.insert_resource(Time::<()>::default());
+    world.init_resource::<Events<BreakupEvent>>();
+    world.init_resource::<Events<PartnerEvent>>();
+    world.init_resource::<Events<WidowEvent>>();
+    world.init_resource::<Time>();
 
     // Create male and female with ages in partner-seeking range but above future death age
     let male1 = world.spawn((

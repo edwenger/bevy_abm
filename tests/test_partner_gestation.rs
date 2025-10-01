@@ -1,11 +1,11 @@
 use bevy::prelude::*;
 use bevy::ecs::event::Events;
 
-use bevy_abm::individual::{Individual, Demog, Sex, Adult};
+use bevy_abm::individual::{Individual, Demog, Sex, Adult, BirthEvent};
 use bevy_abm::partner::{Partner, start_partner_seeking,
                         queue_partner_seekers, match_partners, resolve_matches,
                         random_breakups, detect_widows, AvailableSeekers,
-                        Relationship, BreakupEvent};
+                        Relationship, BreakupEvent, PartnerEvent, WidowEvent};
 use bevy_abm::gestation::{conception, RemainingGestation, update_gestation};
 use bevy_abm::config::SimulationParameters;
 
@@ -27,6 +27,9 @@ fn test_death_stops_conception() {
     world.insert_resource(params.clone());
     world.insert_resource(AvailableSeekers::default());
     world.init_resource::<Events<BreakupEvent>>();
+    world.init_resource::<Events<PartnerEvent>>();
+    world.init_resource::<Events<WidowEvent>>();
+    world.init_resource::<Events<BirthEvent>>();
     world.init_resource::<Time>();
 
     // Create entities: 1 male, 1 female - both adults, conception-ready age
@@ -145,6 +148,9 @@ fn test_breakup_stops_conception() {
     world.insert_resource(params.clone());
     world.insert_resource(AvailableSeekers::default());
     world.init_resource::<Events<BreakupEvent>>();
+    world.init_resource::<Events<PartnerEvent>>();
+    world.init_resource::<Events<WidowEvent>>();
+    world.init_resource::<Events<BirthEvent>>();
     world.init_resource::<Time>();
 
     // Create entities: 1 male, 1 female - both adults, conception-ready age

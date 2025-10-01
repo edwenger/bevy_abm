@@ -3,6 +3,10 @@ name = "bevy_abm"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "bevy_abm"
+crate-type = ["cdylib", "rlib"]
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
@@ -11,6 +15,11 @@ bevy_egui = { version = "0.27", default-features = false, features = ["render", 
 rand = "0.8"
 approx = "0.5.1"
 clap = { version = "4.0", features = ["derive"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+pyo3 = { version = "0.22", features = ["extension-module"], optional = true }
+polars = { version = "0.43", features = ["lazy", "dtype-datetime"], optional = true }
+pyo3-polars = { version = "0.17", features = ["derive"], optional = true }
 
 [features]
 # no features by default
@@ -18,3 +27,6 @@ default = []
 
 # add "headless" feature
 headless = []
+
+# add "python" feature for PyO3 bindings
+python = ["pyo3", "polars", "pyo3-polars"]

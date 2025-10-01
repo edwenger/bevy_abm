@@ -11,6 +11,10 @@ pub struct Args {
     /// Simulation duration in years (for headless mode)
     #[arg(short = 's', long)]
     pub sim_years: Option<f32>,
+
+    /// Export event log to JSON files at simulation end
+    #[arg(long, default_value_t = false)]
+    pub export_events: bool,
 }
 
 #[derive(Resource, Clone)]
