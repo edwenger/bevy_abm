@@ -11,6 +11,20 @@ use rand::{
 use crate::gestation::Mother;
 use crate::config::{SimulationParameters, Args};
 
+#[derive(Event)]
+pub struct BirthEvent {
+    pub child_entity: Entity,
+    pub mother_entity: Option<Entity>,
+    pub time: f32,
+}
+
+#[derive(Event)]
+pub struct DeathEvent {
+    pub entity: Entity,
+    pub age: f32,
+    pub time: f32,
+}
+
 pub struct IndividualPlugin;
 
 impl Plugin for IndividualPlugin {
@@ -18,6 +32,8 @@ impl Plugin for IndividualPlugin {
         app
 
         //-- DEMOGRAPHICS
+        .add_event::<BirthEvent>()
+        .add_event::<DeathEvent>()
         .add_systems(Startup, initial_population)
         .add_systems(Update, (
             spawn_births,
@@ -67,14 +83,19 @@ pub struct Demog {
     pub sex: Sex,
 }
 
-pub fn initial_population(mut commands: Commands, args: Res<Args>) {
+pub fn initial_population(
+    mut commands: Commands,
+    args: Res<Args>,
+    mut birth_events: EventWriter<BirthEvent>,
+    time: Res<Time>
+) {
     // Spawn initial population based on command line argument
     // In headless mode, spawn N individuals as specified
     // In GUI mode, spawn 0 by default (can be overridden with -n)
     for _ in 0..args.initial_population {
         // Spawn individuals with random ages between 18-30 for variety
         let age = 18.0 + rand::random::<f32>() * 12.0; // 18-30 years old
-        spawn_individual(&mut commands, age, None);
+        spawn_individual(&mut commands, age, None, &mut birth_events, &time);
     }
 
     if args.initial_population > 0 {
@@ -85,7 +106,9 @@ pub fn initial_population(mut commands: Commands, args: Res<Args>) {
 pub fn spawn_individual(
     commands: &mut Commands,
     age: f32,
-    mother_opt: Option<Entity>
+    mother_opt: Option<Entity>,
+    birth_events: &mut EventWriter<BirthEvent>,
+    time: &Res<Time>
 ) -> Entity {
 
     let sex: Sex = rand::random();
@@ -102,6 +125,13 @@ pub fn spawn_individual(
         commands.entity(individual_id).insert(Mother(mother));
     }
 
+    // Emit birth event
+    birth_events.send(BirthEvent {
+        child_entity: individual_id,
+        mother_entity: mother_opt,
+        time: time.elapsed_seconds(),
+    });
+
     eprintln!("...in entity {:?}", individual_id);
     return individual_id;
 }
@@ -113,7 +143,9 @@ pub fn spawn_births() {
 pub fn update_age(
     mut commands: Commands,
     mut query: Query<(Entity, &mut Demog, Option<&Adult>, Option<&Elder>)>,
-    params: Res<SimulationParameters>
+    params: Res<SimulationParameters>,
+    mut death_events: EventWriter<DeathEvent>,
+    time: Res<Time>
 ) {
     for (e, mut demog, adult_opt, elder_opt) in query.iter_mut() {
 
@@ -131,6 +163,13 @@ pub fn update_age(
 
         if demog.age > params.death_age {
             eprintln!("{:?} died", e);
+
+            death_events.send(DeathEvent {
+                entity: e,
+                age: demog.age,
+                time: time.elapsed_seconds(),
+            });
+
             commands.entity(e).despawn();
         }
     }

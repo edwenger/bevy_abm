@@ -5,7 +5,7 @@ use std::time::Duration;
 use rand::prelude::random;
 
 use crate::individual::{
-    Demog, Sex, spawn_individual
+    Demog, Sex, spawn_individual, BirthEvent
 };
 use crate::partner::Partner;
 use crate::config::SimulationParameters;
@@ -41,7 +41,9 @@ pub struct Mother(pub Entity);
 
 pub fn update_gestation(
     mut commands: Commands,
-    mut query: Query<(Entity, &mut RemainingGestation, &Demog)>
+    mut query: Query<(Entity, &mut RemainingGestation, &Demog)>,
+    mut birth_events: EventWriter<BirthEvent>,
+    time: Res<Time>
 ) {
     for (e, mut gestation, demog) in query.iter_mut() {
         gestation.0 -= CONCEPTION_TIMESTEP;
@@ -53,7 +55,9 @@ pub fn update_gestation(
             spawn_individual(
                 &mut commands,
                 0.0,    // age = newborn
-                Some(e) // mother's entity_id
+                Some(e), // mother's entity_id
+                &mut birth_events,
+                &time
             );
         }
     }

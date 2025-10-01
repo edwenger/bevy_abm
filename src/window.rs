@@ -7,7 +7,7 @@ use rand::prelude::random;
 use std::fmt::Formatter;
 
 use crate::individual::{
-    Individual, Demog, Adult, Elder, Sex, spawn_individual
+    Individual, Demog, Adult, Elder, Sex, spawn_individual, BirthEvent
 };
 use crate::partner::{
     Partner, PartnerSeeking, Relationship, Partners, BreakupEvent
@@ -67,11 +67,13 @@ fn setup_camera(mut commands: Commands) {
 fn keyboard_input(
     mut commands: Commands,
     keys: Res<ButtonInput<KeyCode>>,
-    params: Res<SimulationParameters>
+    params: Res<SimulationParameters>,
+    mut birth_events: EventWriter<BirthEvent>,
+    time: Res<Time>
 ) {
     if keys.just_pressed(KeyCode::Enter) {
         // Return was pressed --> add a random person
-        spawn_individual(&mut commands, params.spawn_individual_age, None);
+        spawn_individual(&mut commands, params.spawn_individual_age, None, &mut birth_events, &time);
     }
 }
 

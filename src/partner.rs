@@ -13,6 +13,23 @@ use crate::config::SimulationParameters;
 pub struct BreakupEvent {
     pub male_entity: Entity,
     pub _female_entity: Entity,
+    pub relationship_entity: Entity,
+    pub time: f32,
+}
+
+#[derive(Event)]
+pub struct PartnerEvent {
+    pub individual1: Entity,
+    pub individual2: Entity,
+    pub relationship_entity: Entity,
+    pub time: f32,
+}
+
+#[derive(Event)]
+pub struct WidowEvent {
+    pub widow_entity: Entity,
+    pub deceased_entity: Entity,
+    pub relationship_entity: Entity,
     pub time: f32,
 }
 
@@ -24,6 +41,8 @@ impl Plugin for PartnerPlugin {
 
         //-- PARTNERS
         .add_event::<BreakupEvent>()
+        .add_event::<PartnerEvent>()
+        .add_event::<WidowEvent>()
         .init_resource::<AvailableSeekers>()
         .add_systems(Update, (
             start_partner_seeking,
@@ -151,13 +170,22 @@ pub fn match_partners(
 pub fn resolve_matches(
     mut commands: Commands,
     rel_query: Query<(Entity, &Partners), Added<Relationship>>,
-    ind_query: Query<&Individual, (Without<Partner>, With<PartnerSeeking>)>
+    ind_query: Query<&Individual, (Without<Partner>, With<PartnerSeeking>)>,
+    mut partner_events: EventWriter<PartnerEvent>,
+    time: Res<Time>
 ) {
     for (rel_entity, partners) in rel_query.iter() {
         if let Ok(_ind1) = ind_query.get(partners.e1) {
             if let Ok(_ind2) = ind_query.get(partners.e2) {
                 commands.entity(partners.e1).insert(Partner(partners.e2)).remove::<PartnerSeeking>();
                 commands.entity(partners.e2).insert(Partner(partners.e1)).remove::<PartnerSeeking>();
+
+                partner_events.send(PartnerEvent {
+                    individual1: partners.e1,
+                    individual2: partners.e2,
+                    relationship_entity: rel_entity,
+                    time: time.elapsed_seconds(),
+                });
             } else {
                 eprintln!("{:?} has already despawned", partners.e2);
                 commands.entity(rel_entity).despawn();
@@ -200,6 +228,7 @@ pub fn random_breakups(
                 breakup_events.send(BreakupEvent {
                     male_entity,
                     _female_entity: female_entity,
+                    relationship_entity: rel_entity,
                     time: time.elapsed_seconds(),
                 });
             }
@@ -218,7 +247,9 @@ pub fn detect_widows(
     mut commands: Commands,
     mut removals: RemovedComponents<Partner>,
     rel_query: Query<(Entity, &Partners), With<Relationship>>,
-    entity_query: Query<Entity>
+    entity_query: Query<Entity>,
+    mut widow_events: EventWriter<WidowEvent>,
+    time: Res<Time>
 ) {
     for dead_entity in removals.read() {
         eprintln!("{:?} detected removal of Partner component", dead_entity);
@@ -230,6 +261,13 @@ pub fn detect_widows(
                 // Only try to remove Partner component if the partner entity still exists
                 if entity_query.get(partners.e2).is_ok() {
                     commands.entity(partners.e2).remove::<Partner>();
+
+                    widow_events.send(WidowEvent {
+                        widow_entity: partners.e2,
+                        deceased_entity: dead_entity,
+                        relationship_entity: rel_entity,
+                        time: time.elapsed_seconds(),
+                    });
                 }
                 commands.entity(rel_entity).despawn();
                 break;
@@ -238,6 +276,13 @@ pub fn detect_widows(
                 // Only try to remove Partner component if the partner entity still exists
                 if entity_query.get(partners.e1).is_ok() {
                     commands.entity(partners.e1).remove::<Partner>();
+
+                    widow_events.send(WidowEvent {
+                        widow_entity: partners.e1,
+                        deceased_entity: dead_entity,
+                        relationship_entity: rel_entity,
+                        time: time.elapsed_seconds(),
+                    });
                 }
                 commands.entity(rel_entity).despawn();
                 break;

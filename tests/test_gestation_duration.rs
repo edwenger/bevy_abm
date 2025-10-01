@@ -2,8 +2,9 @@
 extern crate approx;
 
 use bevy::prelude::*;
+use bevy::ecs::event::Events;
 
-use bevy_abm::individual::{Individual, Demog, Sex, Adult};
+use bevy_abm::individual::{Individual, Demog, Sex, Adult, BirthEvent};
 use bevy_abm::gestation::{RemainingGestation, update_gestation, Mother};
 use bevy_abm::config::SimulationParameters;
 
@@ -23,6 +24,8 @@ fn test_gestation_completes_after_correct_timesteps() {
         ..Default::default()
     };
     world.insert_resource(params.clone());
+    world.init_resource::<Events<BirthEvent>>();
+    world.init_resource::<Time>();
 
     // Create pregnant female
     let mother_entity = world.spawn((
