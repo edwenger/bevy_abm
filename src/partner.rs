@@ -9,7 +9,9 @@ use crate::individual::{
 };
 use crate::config::SimulationParameters;
 
-#[derive(Event)]
+use serde::Serialize;
+
+#[derive(Event, Serialize)]
 pub struct BreakupEvent {
     pub male_entity: Entity,
     pub _female_entity: Entity,
@@ -17,7 +19,7 @@ pub struct BreakupEvent {
     pub time: f32,
 }
 
-#[derive(Event)]
+#[derive(Event, Serialize)]
 pub struct PartnerEvent {
     pub individual1: Entity,
     pub individual2: Entity,
@@ -25,7 +27,7 @@ pub struct PartnerEvent {
     pub time: f32,
 }
 
-#[derive(Event)]
+#[derive(Event, Serialize)]
 pub struct WidowEvent {
     pub widow_entity: Entity,
     pub deceased_entity: Entity,

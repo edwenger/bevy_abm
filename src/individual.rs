@@ -11,14 +11,16 @@ use rand::{
 use crate::gestation::Mother;
 use crate::config::{SimulationParameters, Args};
 
-#[derive(Event)]
+use serde::Serialize;
+
+#[derive(Event, Serialize)]
 pub struct BirthEvent {
     pub child_entity: Entity,
     pub mother_entity: Option<Entity>,
     pub time: f32,
 }
 
-#[derive(Event)]
+#[derive(Event, Serialize)]
 pub struct DeathEvent {
     pub entity: Entity,
     pub age: f32,

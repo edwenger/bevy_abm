@@ -1,7 +1,10 @@
 use bevy::prelude::*;
+use std::fs::File;
+use std::io::Write;
 
 use crate::individual::{BirthEvent, DeathEvent};
 use crate::partner::{BreakupEvent, PartnerEvent, WidowEvent};
+use crate::config::Args;
 
 #[derive(Resource, Default)]
 pub struct EventLog {
@@ -31,7 +34,8 @@ impl Plugin for EventLogPlugin {
 
 fn print_event_summary(
     event_log: Res<EventLog>,
-    exit_events: EventReader<bevy::app::AppExit>
+    exit_events: EventReader<bevy::app::AppExit>,
+    args: Res<Args>
 ) {
     if !exit_events.is_empty() {
         eprintln!("\n========== EVENT SUMMARY ==========");
@@ -41,6 +45,29 @@ fn print_event_summary(
         eprintln!("Breakups:     {}", event_log.breakups.len());
         eprintln!("Widowings:    {}", event_log.widowings.len());
         eprintln!("===================================\n");
+
+        // Export to JSON if requested
+        if args.export_events {
+            export_births_json(&event_log);
+        }
+    }
+}
+
+fn export_births_json(event_log: &EventLog) {
+    match serde_json::to_string_pretty(&event_log.births) {
+        Ok(json) => {
+            match File::create("births.json") {
+                Ok(mut file) => {
+                    if let Err(e) = file.write_all(json.as_bytes()) {
+                        eprintln!("Error writing births.json: {}", e);
+                    } else {
+                        eprintln!("Exported {} birth events to births.json", event_log.births.len());
+                    }
+                }
+                Err(e) => eprintln!("Error creating births.json: {}", e),
+            }
+        }
+        Err(e) => eprintln!("Error serializing births to JSON: {}", e),
     }
 }
 
