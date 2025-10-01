@@ -6,7 +6,7 @@ use crate::individual::{BirthEvent, DeathEvent};
 use crate::partner::{BreakupEvent, PartnerEvent, WidowEvent};
 use crate::config::Args;
 
-#[derive(Resource, Default)]
+#[derive(Resource, Default, Clone)]
 pub struct EventLog {
     pub births: Vec<BirthEvent>,
     pub deaths: Vec<DeathEvent>,

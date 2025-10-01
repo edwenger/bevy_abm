@@ -271,7 +271,7 @@ pub fn handle_breakup_movement(
             let destination = Position(male_position.0 + random_direction * move_distance);
 
             commands.entity(event.male_entity).insert(MovingTowards(destination));
-            eprintln!("Male {:?} moving away after breakup at time {:.1}", event.male_entity, event.time);
+            debug!("Male {:?} moving away after breakup at time {:.1}", event.male_entity, event.time);
         }
     }
 }
@@ -392,7 +392,7 @@ fn simulation_controls_ui(
             ui.label("Death Age");
             let response = ui.add(egui::Slider::new(&mut params.death_age, 20.0..=100.0).text("years"));
             if response.changed() {
-                eprintln!("Death age changed to: {}", params.death_age);
+                info!("Death age changed to: {}", params.death_age);
             }
 
             ui.separator();
@@ -401,14 +401,14 @@ fn simulation_controls_ui(
             ui.label("Min Partner Seeking Age");
             let response = ui.add(egui::Slider::new(&mut params.min_partner_seeking_age, 15.0..=30.0).text("years"));
             if response.changed() {
-                eprintln!("Min partner seeking age changed to: {}", params.min_partner_seeking_age);
+                info!("Min partner seeking age changed to: {}", params.min_partner_seeking_age);
             }
 
             // Max Partner Seeking Age slider
             ui.label("Max Partner Seeking Age");
             let response = ui.add(egui::Slider::new(&mut params.max_partner_seeking_age, 40.0..=70.0).text("years"));
             if response.changed() {
-                eprintln!("Max partner seeking age changed to: {}", params.max_partner_seeking_age);
+                info!("Max partner seeking age changed to: {}", params.max_partner_seeking_age);
             }
 
             ui.separator();
@@ -417,7 +417,7 @@ fn simulation_controls_ui(
             ui.label("Spawn Individual Age");
             let response = ui.add(egui::Slider::new(&mut params.spawn_individual_age, 15.0..=25.0).text("years"));
             if response.changed() {
-                eprintln!("Spawn individual age changed to: {}", params.spawn_individual_age);
+                info!("Spawn individual age changed to: {}", params.spawn_individual_age);
             }
 
             ui.separator();
@@ -426,7 +426,7 @@ fn simulation_controls_ui(
             ui.label("Conception Rate");
             let response = ui.add(egui::Slider::new(&mut params.conception_rate, 0.1..=2.0).text("rate"));
             if response.changed() {
-                eprintln!("Conception rate changed to: {}", params.conception_rate);
+                info!("Conception rate changed to: {}", params.conception_rate);
             }
 
             ui.separator();
@@ -435,14 +435,14 @@ fn simulation_controls_ui(
             ui.label("Min Conception Age");
             let response = ui.add(egui::Slider::new(&mut params.min_conception_age, 18.0..=35.0).text("years"));
             if response.changed() {
-                eprintln!("Min conception age changed to: {}", params.min_conception_age);
+                info!("Min conception age changed to: {}", params.min_conception_age);
             }
 
             // Max Conception Age slider
             ui.label("Max Conception Age");
             let response = ui.add(egui::Slider::new(&mut params.max_conception_age, 25.0..=50.0).text("years"));
             if response.changed() {
-                eprintln!("Max conception age changed to: {}", params.max_conception_age);
+                info!("Max conception age changed to: {}", params.max_conception_age);
             }
 
             ui.separator();
@@ -451,7 +451,7 @@ fn simulation_controls_ui(
             ui.label("Gestation Duration");
             let response = ui.add(egui::Slider::new(&mut params.gestation_duration, 0.5..=1.5).text("time units"));
             if response.changed() {
-                eprintln!("Gestation duration changed to: {}", params.gestation_duration);
+                info!("Gestation duration changed to: {}", params.gestation_duration);
             }
 
             ui.separator();
@@ -460,7 +460,7 @@ fn simulation_controls_ui(
             ui.label("Breakup Rate");
             let response = ui.add(egui::Slider::new(&mut params.breakup_rate, 0.0..=1.0).text("per year"));
             if response.changed() {
-                eprintln!("Breakup rate changed to: {}", params.breakup_rate);
+                info!("Breakup rate changed to: {}", params.breakup_rate);
             }
         });
 }

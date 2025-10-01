@@ -13,14 +13,14 @@ use crate::config::{SimulationParameters, Args};
 
 use serde::Serialize;
 
-#[derive(Event, Serialize)]
+#[derive(Event, Serialize, Clone)]
 pub struct BirthEvent {
     pub child_entity: Entity,
     pub mother_entity: Option<Entity>,
     pub time: f32,
 }
 
-#[derive(Event, Serialize)]
+#[derive(Event, Serialize, Clone)]
 pub struct DeathEvent {
     pub entity: Entity,
     pub age: f32,

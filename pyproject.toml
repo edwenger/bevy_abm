@@ -3,10 +3,13 @@ requires = ["maturin>=1.0,<2.0"]
 build-backend = "maturin"
 
 [project]
-name = "pybevy-demog"
+name = "bevy-abm"
 version = "0.1.0"
-description = "Demographic simulation using Bevy ECS, callable from Python"
+description = "Demographic agent-based model using Bevy ECS, callable from Python"
 requires-python = ">=3.8"
+dependencies = [
+    "polars>=0.19.0",
+]
 classifiers = [
     "Programming Language :: Rust",
     "Programming Language :: Python :: Implementation :: CPython",
@@ -14,4 +17,3 @@ classifiers = [
 
 [tool.maturin]
 features = ["python"]
-module-name = "pybevy_demog"
