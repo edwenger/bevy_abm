@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use bevy::app::AppExit;
 use clap::Parser;
 
 #[derive(Parser, Debug, Resource)]
@@ -61,6 +62,23 @@ pub struct ConfigPlugin;
 impl Plugin for ConfigPlugin {
     fn build(&self, app: &mut App) {
         app
-            .init_resource::<SimulationParameters>();
+            .init_resource::<SimulationParameters>()
+            .add_systems(Update, check_simulation_end);
+    }
+}
+
+pub fn check_simulation_end(
+    args: Res<Args>,
+    time: Res<Time>,
+    mut exit: EventWriter<AppExit>
+) {
+    if let Some(sim_years) = args.sim_years {
+        let elapsed_years = time.elapsed_seconds();
+
+        if elapsed_years >= sim_years {
+            info!("Simulation completed after {:.2} years", elapsed_years);
+            info!("Exiting...");
+            exit.send(AppExit);
+        }
     }
 }

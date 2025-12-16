@@ -1,5 +1,4 @@
 use bevy::prelude::*;
-use bevy::app::AppExit;
 use bevy::time::common_conditions::on_timer;
 use std::time::Duration;
 
@@ -40,7 +39,6 @@ impl Plugin for IndividualPlugin {
         .add_systems(Update, (
             spawn_births,
             update_age.run_if(on_timer(Duration::from_secs_f32(AGING_TIMESTEP))),
-            check_simulation_end
         ));
     }
 }
@@ -177,18 +175,3 @@ pub fn update_age(
     }
 }
 
-pub fn check_simulation_end(
-    args: Res<Args>,
-    time: Res<Time>,
-    mut exit: EventWriter<AppExit>
-) {
-    if let Some(sim_years) = args.sim_years {
-        let elapsed_years = time.elapsed_seconds();
-
-        if elapsed_years >= sim_years {
-            info!("Simulation completed after {:.2} years", elapsed_years);
-            info!("Exiting...");
-            exit.send(AppExit);
-        }
-    }
-}
